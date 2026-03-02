@@ -85,6 +85,11 @@ interface TopContent {
   topUsers: Array<{ name: string; messages: number; lastActive: string }>;
 }
 
+type DailyMessageRow = {
+  created_at: string;
+  user_id: string | null;
+};
+
 export default function ReportsDashboard() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('7days'); // 6h, 12h, 24h, 7days, 30days, 90days, 180days, 365days, month
@@ -318,6 +323,8 @@ export default function ReportsDashboard() {
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
 
+      const typedMessages = (messages ?? []) as DailyMessageRow[];
+
       const { data: resources } = await supabase
         .from('resources')
         .select('created_at, downloads')
@@ -342,7 +349,7 @@ export default function ReportsDashboard() {
 
       // Add message counts and collect user data
       const userSetPerDay: Record<string, Set<string>> = {};
-      messages?.forEach(msg => {
+      typedMessages.forEach(msg => {
         const dateStr = format(new Date(msg.created_at), 'yyyy-MM-dd');
         if (dailyData[dateStr]) {
           dailyData[dateStr].messages += 1;
