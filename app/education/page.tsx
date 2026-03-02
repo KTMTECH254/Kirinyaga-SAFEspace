@@ -655,7 +655,7 @@ export default function EducationPage() {
     const savedVotes = localStorage.getItem('resourceVotes');
     if (savedVotes) {
       try {
-        setUserVotes(JSON.parse(savedVotes));
+        setUserVotes(JSON.parse(savedVotes) as Record<string, 'up' | 'down'>);
       } catch (error) {
         console.error('Error parsing saved votes:', error);
       }
@@ -766,7 +766,7 @@ export default function EducationPage() {
     if (currentVote === 'up') {
       // Remove upvote
       newUpvotes -= 1;
-      const newVotes = { ...userVotes };
+      const newVotes: Record<string, 'up' | 'down'> = { ...userVotes };
       delete newVotes[resourceId];
       setUserVotes(newVotes);
       localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
@@ -774,13 +774,13 @@ export default function EducationPage() {
       // Change from down to up
       newDownvotes -= 1;
       newUpvotes += 1;
-      const newVotes = { ...userVotes, [resourceId]: 'up' };
+      const newVotes: Record<string, 'up' | 'down'> = { ...userVotes, [resourceId]: 'up' };
       setUserVotes(newVotes);
       localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
     } else {
       // New upvote
       newUpvotes += 1;
-      const newVotes = { ...userVotes, [resourceId]: 'up' };
+      const newVotes: Record<string, 'up' | 'down'> = { ...userVotes, [resourceId]: 'up' };
       setUserVotes(newVotes);
       localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
     }
@@ -816,7 +816,7 @@ export default function EducationPage() {
     if (currentVote === 'down') {
       // Remove downvote
       newDownvotes -= 1;
-      const newVotes = { ...userVotes };
+      const newVotes: Record<string, 'up' | 'down'> = { ...userVotes };
       delete newVotes[resourceId];
       setUserVotes(newVotes);
       localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
@@ -824,13 +824,13 @@ export default function EducationPage() {
       // Change from up to down
       newUpvotes -= 1;
       newDownvotes += 1;
-      const newVotes = { ...userVotes, [resourceId]: 'down' };
+      const newVotes: Record<string, 'up' | 'down'> = { ...userVotes, [resourceId]: 'down' };
       setUserVotes(newVotes);
       localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
     } else {
       // New downvote
       newDownvotes += 1;
-      const newVotes = { ...userVotes, [resourceId]: 'down' };
+      const newVotes: Record<string, 'up' | 'down'> = { ...userVotes, [resourceId]: 'down' };
       setUserVotes(newVotes);
       localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
     }
