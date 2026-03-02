@@ -3,12 +3,18 @@
 /**
  * Get user display name from database or generate anonymous name
  */
+import { getSessionAnonymousName, ensureSessionAnonymousName } from '@/utils/sessionAnon';
+
 export const getUserDisplayName = async (userId: string, supabase: any): Promise<string> => {
   if (!userId || userId === 'guest') {
-    return 'Anonymous';
+    return getSessionAnonymousName() || 'Anonymous';
   }
 
   try {
+    const sessionName = getSessionAnonymousName();
+    if (sessionName) {
+      return sessionName;
+    }
     // First, check if this is a database user
     const { data: userData, error } = await supabase
       .from('users')  // or 'profiles' - use your actual table name
@@ -32,7 +38,7 @@ export const getUserDisplayName = async (userId: string, supabase: any): Promise
   } catch (error) {
     console.error('Error fetching user display name:', error);
     // Fallback to generic anonymous name
-    return `Anonymous_${userId.substring(0, 6)}`;
+    return ensureSessionAnonymousName();
   }
 };
 
@@ -42,6 +48,9 @@ export const getUserDisplayName = async (userId: string, supabase: any): Promise
 export const getChatUserName = (): string => {
   if (typeof window === 'undefined') return 'Anonymous';
   
+  const sessionName = getSessionAnonymousName();
+  if (sessionName) return sessionName;
+
   const userId = localStorage.getItem('anonymousUser');
   
   if (!userId) return 'Anonymous';
@@ -53,7 +62,7 @@ export const getChatUserName = (): string => {
   
   // For database user IDs, we'll need to fetch async
   // Return temporary name that will be updated when async fetch completes
-  return `User_${userId.substring(0, 6)}`;
+  return ensureSessionAnonymousName();
 };
 
 /**
@@ -68,7 +77,7 @@ export const sendMessageWithUser = async (
   const user = userId || localStorage.getItem('anonymousUser') || 'guest';
   
   // Get user display name
-  let userName = 'Anonymous';
+  let userName = getSessionAnonymousName() || 'Anonymous';
   
   if (user && user !== 'guest') {
     try {

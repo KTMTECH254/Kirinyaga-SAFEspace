@@ -2,11 +2,27 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { authFunctions } from '../../lib/supabase';
+import { setSessionAnonymousName } from '@/utils/sessionAnon';
 
 export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [generatedName, setGeneratedName] = useState<string>('');
+  const [anonymousName, setAnonymousName] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+  const [isSignUp, setIsSignUp] = useState(true);
+
+  const getErrorMessage = (err: unknown) => {
+    if (!err) return 'Unknown error';
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    if (typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
+      return (err as { message: string }).message;
+    }
+    return String(err);
+  };
   
   // Enhanced fun anonymous name generator
   const generateAnonymousName = () => {
@@ -32,47 +48,126 @@ export default function LoginPage() {
     return `${adjective}${animal}${symbol}${number}`;
   };
 
-  const handleAnonymousLogin = () => {
-    setIsLoading(true);
-    
-    // Generate fresh anonymous user
-    const anonymousName = generatedName || generateAnonymousName();
-    const anonymousId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    
-    const anonymousUser = {
-      id: anonymousId,
-      name: anonymousName,
-      isAnonymous: true,
-      loginTime: new Date().toISOString(),
-      sessionId: Date.now().toString() // Fresh session ID each time
-    };
+  const handleSignUp = async () => {
+    if (!anonymousName.trim()) {
+      setError('Please enter an anonymous name');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Please enter a password');
+      return;
+    }
 
-    // Save to localStorage
-    localStorage.setItem('anonymousUser', JSON.stringify(anonymousUser));
-    
-    // Also save to sessionStorage for extra freshness
-    sessionStorage.setItem('currentSession', JSON.stringify({
-      sessionStart: new Date().toISOString(),
-      userName: anonymousName
-    }));
-    
-    console.log('New anonymous user created:', anonymousUser);
-    
-    // Add school project analytics (optional)
-    const projectStats = JSON.parse(localStorage.getItem('kirinyaga_stats') || '{"logins": 0}');
-    projectStats.logins = (projectStats.logins || 0) + 1;
-    localStorage.setItem('kirinyaga_stats', JSON.stringify(projectStats));
-    
-    // Navigate after short delay for better UX
-    setTimeout(() => {
-      router.push('/chat-rooms');
-    }, 800);
+    setIsLoading(true);
+    setError('');
+
+    try {
+      console.log('Starting sign-up process for:', anonymousName.trim());
+
+      // Create new profile with password
+      console.log('Creating profile with password...');
+      const { profile: newProfile, error: profileError } = await authFunctions.createUserWithPassword(
+        anonymousName.trim(),
+        password
+      );
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+        setError(`Failed to create profile: ${getErrorMessage(profileError)}`);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Profile created successfully:', newProfile);
+
+      console.log('Sign-up completed successfully! Switching to sign-in mode.');
+
+      // Clear the form and switch to sign-in mode
+      setAnonymousName('');
+      setPassword('');
+      setIsSignUp(false);
+      setError('');
+      setSuccess('Account created successfully! Please sign in with your anonymous name.');
+      setIsLoading(false);
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+
+    } catch (error) {
+      console.error('Unexpected error during sign up:', error);
+      setError(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsLoading(false);
+    }
   };
 
-  // Generate a preview name on hover
-  const handleGeneratePreview = () => {
-    if (!isLoading) {
-      setGeneratedName(generateAnonymousName());
+  const handleLogin = async () => {
+    if (!anonymousName.trim()) {
+      setError('Please enter your anonymous name');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Please enter your password');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      // Sign in with password
+      const { profile: existingProfile, error: signInError } = await authFunctions.signInWithPassword(
+        anonymousName.trim(),
+        password
+      );
+      if (signInError) {
+        console.error('Error signing in with password:', signInError);
+        setError(getErrorMessage(signInError));
+        setIsLoading(false);
+        return;
+      }
+
+      // Store user info in localStorage for the app to use
+      const userInfo = {
+        id: existingProfile!.id,
+        name: existingProfile.anonymous_name,
+        isAnonymous: true,
+        loginTime: new Date().toISOString(),
+        profileId: existingProfile.id
+      };
+
+      localStorage.setItem('anonymousUser', JSON.stringify(userInfo));
+      const sessionAnonymousName = setSessionAnonymousName();
+      sessionStorage.setItem('currentSession', JSON.stringify({
+        sessionStart: new Date().toISOString(),
+        userName: existingProfile.anonymous_name,
+        userId: existingProfile!.id,
+        sessionAnonymousName
+      }));
+
+      console.log('Signed in with existing anonymous profile:', userInfo);
+
+      // Add school project analytics (optional)
+      const projectStats = JSON.parse(localStorage.getItem('kirinyaga_stats') || '{"logins": 0}');
+      projectStats.logins = (projectStats.logins || 0) + 1;
+      localStorage.setItem('kirinyaga_stats', JSON.stringify(projectStats));
+
+      // Navigate after short delay for better UX
+      setTimeout(() => {
+        router.push('/chat-rooms');
+      }, 800);
+
+    } catch (error) {
+      console.error('Unexpected error during login:', error);
+      setError(`Unexpected error: ${getErrorMessage(error)}`);
+      setIsLoading(false);
+    }
+  };
+
+  // Generate a suggestion for the input
+  const handleGenerateSuggestion = () => {
+    if (!isLoading && !anonymousName.trim()) {
+      setAnonymousName(generateAnonymousName());
     }
   };
 
@@ -113,37 +208,61 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Name Preview Card */}
-          <div 
-            className="mb-8 p-5 rounded-2xl bg-gradient-to-r from-cyan-500/5 to-purple-500/5 border border-white/5 cursor-pointer hover:border-cyan-500/20 transition-all duration-300"
-            onMouseEnter={handleGeneratePreview}
-            onClick={handleGeneratePreview}
-          >
-            <div className="flex items-center justify-center gap-3 mb-3">
+          {/* Anonymous Name Input */}
+          <div className="mb-8 p-5 rounded-2xl bg-gradient-to-r from-cyan-500/5 to-purple-500/5 border border-white/5 transition-all duration-300 focus-within:border-cyan-500/20">
+            <div className="flex items-center justify-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center">
                 <span className="text-teal-300">🎭</span>
               </div>
               <h3 className="text-zinc-100 font-medium">Your Anonymous Identity</h3>
             </div>
-            
-            {generatedName ? (
-              <div className="text-center">
-                <p className="text-zinc-400 text-sm mb-2">You'll enter as:</p>
-                <div className="text-2xl font-bold bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent animate-pulse">
-                  {generatedName}
-                </div>
-                <p className="text-zinc-500 text-xs mt-2">
-                  Hover/click for a new random identity
-                </p>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={anonymousName}
+                onChange={(e) => setAnonymousName(e.target.value)}
+                placeholder="Enter your anonymous name..."
+                className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-white/10 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300"
+                disabled={isLoading}
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password..."
+                className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-white/10 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300"
+                disabled={isLoading}
+              />
+
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={handleGenerateSuggestion}
+                  disabled={isLoading || !!anonymousName.trim()}
+                  className="text-xs text-cyan-300 hover:text-cyan-200 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors"
+                >
+                  💡 Need inspiration? Click for a suggestion
+                </button>
+
+                {anonymousName && (
+                  <span className="text-xs text-zinc-400">
+                    {anonymousName.length}/50 characters
+                  </span>
+                )}
               </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-zinc-400 text-sm mb-2">Hover here to see your random name</p>
-                <div className="text-lg text-zinc-500 italic">
-                  BraveOak•42, CalmRiver※789, GentleWave~123
+
+              {error && (
+                <div className="text-red-400 text-sm text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2">
+                  {error}
                 </div>
-              </div>
-            )}
+              )}
+
+              {success && (
+                <div className="text-green-400 text-sm text-center bg-green-500/10 border border-green-500/20 rounded-lg py-2">
+                  {success}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Privacy features showcase */}
@@ -151,7 +270,7 @@ export default function LoginPage() {
             <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/5 to-transparent border border-cyan-500/10">
               <div className="flex items-center gap-2">
                 <span className="text-cyan-400">🔒</span>
-                <span className="text-xs text-zinc-300">No Sign-up</span>
+                <span className="text-xs text-zinc-300">No E-MAIL Sign-up</span>
               </div>
             </div>
             <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/5 to-transparent border border-purple-500/10">
@@ -177,27 +296,43 @@ export default function LoginPage() {
           {/* Main action */}
           <div className="space-y-6">
             <button
-              onClick={handleAnonymousLogin}
+              onClick={isSignUp ? handleSignUp : handleLogin}
               disabled={isLoading}
               className={`w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold text-lg shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 flex items-center justify-center gap-2 ${isLoading ? 'opacity-80 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-[0.98]'}`}
             >
               {isLoading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Creating Your Private Space...
+                  {isSignUp ? 'Creating Your Account...' : 'Signing You In...'}
                 </>
               ) : (
                 <>
-                  Enter Anonymously
+                  {isSignUp ? 'Sign Up Anonymously' : 'Sign In'}
                   <span className="ml-2">→</span>
                 </>
               )}
             </button>
 
+            {/* Toggle between sign up and login */}
+            <div className="text-center">
+              <button
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setError('');
+                  setAnonymousName('');
+                  setPassword('');
+                }}
+                disabled={isLoading}
+                className="text-cyan-300 hover:text-cyan-200 text-sm underline underline-offset-2 transition-colors disabled:text-zinc-500 disabled:cursor-not-allowed"
+              >
+                {isSignUp ? 'Already have an account? Sign In' : 'Need to create an account? Sign Up'}
+              </button>
+            </div>
+
             {/* Project explanation for demo */}
             <div className="pt-4 border-t border-white/5">
               <p className="text-zinc-500 text-sm text-center leading-relaxed">
-                <span className="text-cyan-300">School Project Feature:</span> Complete privacy by design. 
+                <span className="text-cyan-300">School Project Feature:</span> Complete privacy by design.
                 Each visit creates a new anonymous identity.
               </p>
             </div>

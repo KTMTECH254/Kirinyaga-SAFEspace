@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
+import { incrementProgressStat } from '@/lib/progress';
 import { 
   Brain, 
   Heart, 
@@ -39,6 +41,7 @@ import {
   Palette,
   FileUp,
   ThumbsUp,
+  ThumbsDown,
   ArrowDown,
   MessageCircle
 } from 'lucide-react';
@@ -598,13 +601,290 @@ University students face **unique mental health challenges** during a critical d
 
 export default function EducationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeCondition, setActiveCondition] = useState(0);
   const [activeSection, setActiveSection] = useState('conditions');
   const [showWelcome, setShowWelcome] = useState(true);
+  
+  // ADDED THESE STATES FOR COMMUNITY RESOURCES
+  const [communityResources, setCommunityResources] = useState<any[]>([]);
+  const [loadingResources, setLoadingResources] = useState(false);
+  const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down'>>({});
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
 
   const currentCondition = mentalHealthResources.conditions[activeCondition];
 
-  // ADD THIS CITATION DOWNLOAD FUNCTION
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (!section) return;
+    const normalized = section === 'community-resource' ? 'community resource' : section;
+    const allowed = ['conditions', 'coping', 'emergency', 'research', 'community resource'];
+    if (allowed.includes(normalized)) {
+      setActiveSection(normalized);
+    }
+  }, [searchParams]);
+
+  // Function to fetch community resources
+  const fetchCommunityResources = useCallback(async () => {
+    try {
+      setLoadingResources(true);
+      
+      const { data, error } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching community resources:', error);
+        return;
+      }
+
+      if (data) {
+        setCommunityResources(data);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoadingResources(false);
+    }
+  }, []);
+
+  // Load user votes from localStorage
+  useEffect(() => {
+    const savedVotes = localStorage.getItem('resourceVotes');
+    if (savedVotes) {
+      try {
+        setUserVotes(JSON.parse(savedVotes));
+      } catch (error) {
+        console.error('Error parsing saved votes:', error);
+      }
+    }
+  }, []);
+
+  // Fetch community resources when section changes
+  useEffect(() => {
+    if (activeSection === 'community resource') {
+      fetchCommunityResources();
+    }
+  }, [activeSection, fetchCommunityResources]);
+
+  // ADDED: Real-time subscription for resource updates
+  useEffect(() => {
+    // Subscribe to real-time updates for the resources table
+    const channel = supabase
+      .channel('resources-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all changes
+          schema: 'public',
+          table: 'resources',
+          filter: 'status=eq.approved' // Only show approved resources
+        },
+        (payload) => {
+          console.log('Real-time resource update:', payload);
+          
+          // Handle different event types
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const resource = payload.new;
+            
+            // Show notification ONLY for genuine admin approvals from pending to approved
+            // This should NOT trigger for any user interactions (votes, downloads, etc.)
+            const oldStatus = payload.old?.status;
+            const newStatus = resource.status;
+
+            // Only show notification for admin approval: status change from pending to approved
+            // with a new reviewed_at timestamp, and NO changes to user interaction fields
+            const isAdminApproval =
+              payload.eventType === 'UPDATE' &&
+              oldStatus === 'pending' &&
+              newStatus === 'approved' &&
+              payload.new?.reviewed_at &&
+              payload.old?.reviewed_at !== payload.new.reviewed_at &&
+              // CRITICAL: Ensure this is NOT triggered by user votes or downloads
+              payload.old?.upvotes === payload.new?.upvotes &&
+              payload.old?.downvotes === payload.new?.downvotes &&
+              payload.old?.downloads === payload.new?.downloads &&
+              // Additional safety: ensure no other fields changed that would indicate user interaction
+              payload.old?.title === payload.new?.title &&
+              payload.old?.description === payload.new?.description;
+
+            if (isAdminApproval) {
+              showNotification('New resource approved!', 'success');
+            }
+
+            // Update the community resources list
+            setCommunityResources(prev => {
+              const existingIndex = prev.findIndex(r => r.id === resource.id);
+              
+              if (existingIndex >= 0) {
+                // Update existing resource
+                const updated = [...prev];
+                updated[existingIndex] = resource;
+                return updated;
+              } else {
+                // Add new resource at the beginning
+                return [resource, ...prev];
+              }
+            });
+          }
+          
+          // Handle deletions
+          if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old.id;
+            setCommunityResources(prev => prev.filter(r => r.id !== deletedId));
+            showNotification('🗑️ Resource removed', 'info');
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // Empty dependency array - runs once on mount
+
+  // Notification function
+  const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // Voting functions
+  const handleUpvote = async (resourceId: string) => {
+    const resource = communityResources.find(r => r.id === resourceId);
+    if (!resource) return;
+
+    const currentVote = userVotes[resourceId];
+    let newUpvotes = resource.upvotes || 0;
+    let newDownvotes = resource.downvotes || 0;
+
+    // Calculate new vote counts
+    if (currentVote === 'up') {
+      // Remove upvote
+      newUpvotes -= 1;
+      const newVotes = { ...userVotes };
+      delete newVotes[resourceId];
+      setUserVotes(newVotes);
+      localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
+    } else if (currentVote === 'down') {
+      // Change from down to up
+      newDownvotes -= 1;
+      newUpvotes += 1;
+      const newVotes = { ...userVotes, [resourceId]: 'up' };
+      setUserVotes(newVotes);
+      localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
+    } else {
+      // New upvote
+      newUpvotes += 1;
+      const newVotes = { ...userVotes, [resourceId]: 'up' };
+      setUserVotes(newVotes);
+      localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
+    }
+
+    // Update UI immediately
+    setCommunityResources(prev => prev.map(r => 
+      r.id === resourceId ? { ...r, upvotes: newUpvotes, downvotes: newDownvotes } : r
+    ));
+
+    // Update in Supabase
+    try {
+      await supabase
+        .from('resources')
+        .update({ 
+          upvotes: newUpvotes,
+          downvotes: newDownvotes 
+        })
+        .eq('id', resourceId);
+    } catch (error) {
+      console.error('Error updating vote in Supabase:', error);
+    }
+  };
+
+  const handleDownvote = async (resourceId: string) => {
+    const resource = communityResources.find(r => r.id === resourceId);
+    if (!resource) return;
+
+    const currentVote = userVotes[resourceId];
+    let newUpvotes = resource.upvotes || 0;
+    let newDownvotes = resource.downvotes || 0;
+
+    // Calculate new vote counts
+    if (currentVote === 'down') {
+      // Remove downvote
+      newDownvotes -= 1;
+      const newVotes = { ...userVotes };
+      delete newVotes[resourceId];
+      setUserVotes(newVotes);
+      localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
+    } else if (currentVote === 'up') {
+      // Change from up to down
+      newUpvotes -= 1;
+      newDownvotes += 1;
+      const newVotes = { ...userVotes, [resourceId]: 'down' };
+      setUserVotes(newVotes);
+      localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
+    } else {
+      // New downvote
+      newDownvotes += 1;
+      const newVotes = { ...userVotes, [resourceId]: 'down' };
+      setUserVotes(newVotes);
+      localStorage.setItem('resourceVotes', JSON.stringify(newVotes));
+    }
+
+    // Update UI immediately
+    setCommunityResources(prev => prev.map(r => 
+      r.id === resourceId ? { ...r, upvotes: newUpvotes, downvotes: newDownvotes } : r
+    ));
+
+    // Update in Supabase
+    try {
+      await supabase
+        .from('resources')
+        .update({ 
+          upvotes: newUpvotes,
+          downvotes: newDownvotes 
+        })
+        .eq('id', resourceId);
+    } catch (error) {
+      console.error('Error updating vote in Supabase:', error);
+    }
+  };
+
+  // Download functions
+  const handleDownload = async (resourceId: string) => {
+    const resource = communityResources.find(r => r.id === resourceId);
+    if (!resource) return;
+
+    // Update download count
+    const newDownloads = (resource.downloads || 0) + 1;
+    
+    // Update UI immediately
+    setCommunityResources(prev => prev.map(r => 
+      r.id === resourceId ? { ...r, downloads: newDownloads } : r
+    ));
+
+    // Update in Supabase
+    try {
+      await supabase
+        .from('resources')
+        .update({ downloads: newDownloads })
+        .eq('id', resourceId);
+      incrementProgressStat('resourceDownloads', 1);
+    } catch (error) {
+      console.error('Error updating download count:', error);
+    }
+
+    // Handle actual file download
+    if (resource.file_url) {
+      window.open(resource.file_url, '_blank');
+    } else {
+      alert(`Downloading: ${resource.title}\n\nNote: This resource doesn't have a file attached.`);
+    }
+  };
+
   const downloadCitation = (format: 'apa' | 'mla' | 'chicago') => {
     const content = academicCitations[format];
     const blob = new Blob([content], { type: 'text/plain' });
@@ -617,11 +897,9 @@ export default function EducationPage() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    // Show download confirmation
-    alert(`Downloaded ${format.toUpperCase()} citations successfully!`);
+    showNotification(`Downloaded ${format.toUpperCase()} citations!`, 'success');
   };
 
-  // ADD THIS FUNCTION FOR TOPIC-SPECIFIC CITATIONS
   const downloadTopicCitation = (topicTitle: string, format: 'apa' | 'mla') => {
     let citation = '';
     
@@ -640,6 +918,8 @@ export default function EducationPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    showNotification(`Downloaded ${format} citation for ${topicTitle}`, 'success');
   };
 
   // Welcome effect
@@ -709,6 +989,31 @@ export default function EducationPage() {
       </motion.div>
     </motion.div>
   );
+
+  // Notification Component
+  const Notification = () => {
+    if (!notification) return null;
+
+    const bgColor = {
+      success: 'bg-green-500',
+      info: 'bg-blue-500',
+      error: 'bg-red-500'
+    }[notification.type];
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -50 }}
+        className={`fixed top-4 right-4 z-50 ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg max-w-sm`}
+      >
+        <div className="flex items-center">
+          <Bell className="w-5 h-5 mr-2" />
+          <span>{notification.message}</span>
+        </div>
+      </motion.div>
+    );
+  };
 
   // Study Break Exercise
   const StudyBreakExercise = () => (
@@ -789,6 +1094,11 @@ export default function EducationPage() {
       {/* Welcome Overlay */}
       <AnimatePresence>
         {showWelcome && <WelcomeOverlay />}
+      </AnimatePresence>
+
+      {/* Notification */}
+      <AnimatePresence>
+        {notification && <Notification />}
       </AnimatePresence>
 
       <main className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
@@ -901,7 +1211,7 @@ export default function EducationPage() {
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
             }`}
           >
-            🚨 Community Resources
+            📚 Community Resources
           </button>
         </div>
 
@@ -957,7 +1267,6 @@ export default function EducationPage() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
-                      // Download topic citations
                       downloadTopicCitation(currentCondition.title, 'apa');
                       setTimeout(() => downloadTopicCitation(currentCondition.title, 'mla'), 300);
                     }}
@@ -1365,7 +1674,7 @@ export default function EducationPage() {
               </div>
             </div>
 
-            {/* UPDATED CITATION TOOLS SECTION */}
+            {/* CITATION TOOLS SECTION */}
             <div className="bg-green-50 border border-green-100 rounded-xl p-6">
               <h3 className="text-2xl font-bold text-gray-800 mb-4">📚 Academic Citations & References</h3>
               <p className="text-gray-600 mb-6">Download formatted citations for academic papers and research</p>
@@ -1458,7 +1767,7 @@ export default function EducationPage() {
                         a.href = url;
                         a.download = 'custom_apa_citation.txt';
                         a.click();
-                        alert('APA citation downloaded!');
+                        showNotification('APA citation downloaded!', 'success');
                       }}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg"
                     >
@@ -1479,7 +1788,7 @@ export default function EducationPage() {
                         a.href = url;
                         a.download = 'custom_mla_citation.txt';
                         a.click();
-                        alert('MLA citation downloaded!');
+                        showNotification('MLA citation downloaded!', 'success');
                       }}
                       className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg"
                     >
@@ -1492,145 +1801,182 @@ export default function EducationPage() {
           </div>
         )}
 
-        {/* COMMUNITY RESOURCES SECTION */}
+        {/* COMMUNITY RESOURCES SECTION - NOW WITH REAL-TIME UPDATES */}
         {activeSection === 'community resource' && (
           <div className="space-y-8">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-800">📚 Community-Shared Academic Resources</h2>
-              <p className="text-gray-600">Research papers and educational materials contributed by our community</p>
+              <p className="text-gray-600">
+                {loadingResources 
+                  ? 'Loading community resources...' 
+                  : `Research papers and educational materials contributed by our community`}
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                ⚡ Resources update in real-time when approved by admin
+              </p>
             </div>
 
-            {/* Featured Resources Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Resource 1 */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-colors shadow-sm"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="bg-red-900/30 p-3 rounded-lg">
-                    <span className="text-2xl">📄</span>
-                  </div>
-                  <span className="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">APPROVED</span>
+            {loadingResources ? (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-4 animate-pulse">📚</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Loading community resources...</h3>
+                <p className="text-gray-600">Fetching from database</p>
+              </div>
+            ) : communityResources.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-4">📚</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">No community resources yet</h3>
+                <p className="text-gray-600 mb-6">Be the first to share an academic resource!</p>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => router.push('/academic-resources/upload')}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium"
+                >
+                  📤 Upload First Resource
+                </motion.button>
+              </div>
+            ) : (
+              <>
+                {/* Featured Resources Grid */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {communityResources.slice(0, 6).map((resource, index) => {
+                    const currentVote = userVotes[resource.id];
+                    const upvotes = resource.upvotes || 0;
+                    const downvotes = resource.downvotes || 0;
+                    const netScore = upvotes - downvotes;
+                    
+                    return (
+                      <motion.div
+                        key={resource.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-colors shadow-sm hover:shadow-md"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className={`${
+                            resource.file_type === 'pdf' ? 'bg-red-900/30' : 
+                            resource.file_type === 'doc' || resource.file_type === 'docx' ? 'bg-blue-900/30' : 
+                            'bg-yellow-900/30'} p-3 rounded-lg`}>
+                            <span className="text-2xl">
+                              {resource.file_type === 'pdf' ? '📄' : 
+                               resource.file_type === 'doc' || resource.file_type === 'docx' ? '📝' : '📎'}
+                            </span>
+                          </div>
+                          <span className="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">APPROVED</span>
+                        </div>
+                        
+                        <h3 className="text-lg font-bold text-gray-800 mb-2 line-clamp-2">
+                          {resource.title}
+                        </h3>
+                        
+                        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                          {resource.description}
+                        </p>
+                        
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {(resource.tags || []).slice(0, 3).map((tag: string, tagIndex: number) => (
+                            <span 
+                              key={tagIndex}
+                              className="text-xs bg-blue-900/50 text-blue-300 px-3 py-1 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {(resource.tags || []).length > 3 && (
+                            <span className="text-xs bg-gray-900/50 text-gray-300 px-3 py-1 rounded-full">
+                              +{(resource.tags || []).length - 3} more
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Voting Buttons */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => handleUpvote(resource.id)}
+                              className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-colors ${
+                                currentVote === 'up'
+                                  ? 'bg-green-100 text-green-700 border border-green-200'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <ThumbsUp className={`w-4 h-4 ${currentVote === 'up' ? 'text-green-600' : 'text-gray-500'}`} />
+                              <span className="font-medium">{upvotes}</span>
+                            </button>
+                            
+                            <div className="text-center">
+                              <div className="font-bold text-lg">{netScore}</div>
+                              <div className="text-xs text-gray-500">score</div>
+                            </div>
+                            
+                            <button
+                              onClick={() => handleDownvote(resource.id)}
+                              className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-colors ${
+                                currentVote === 'down'
+                                  ? 'bg-red-100 text-red-700 border border-red-200'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <ThumbsDown className={`w-4 h-4 ${currentVote === 'down' ? 'text-red-600' : 'text-gray-500'}`} />
+                              <span className="font-medium">{downvotes}</span>
+                            </button>
+                          </div>
+                          
+                          <div className="text-sm text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <ArrowDown className="w-4 h-4" />
+                              <span>{resource.downloads || 0} downloads</span>
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-between items-center text-sm text-gray-500 mb-4">
+                          <div className="flex items-center gap-1">
+                            <span>👤</span>
+                            <span className="truncate max-w-[100px]">{resource.author}</span>
+                          </div>
+                          <span className="text-gray-400 text-xs">
+                            {new Date(resource.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        
+                        {/* Action buttons */}
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            onClick={() => handleDownload(resource.id)}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium"
+                          >
+                            {resource.file_url ? 'Download' : 'View'}
+                          </button>
+                          <button
+                            onClick={() => router.push(`/academic-resources/${resource.id}`)}
+                            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium"
+                          >
+                            Details
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-                <h3 className="text-lg font-bold text-gray-800 mb-2">
-                  CBT for Anxiety in Kenyan Students
-                </h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Research paper on adapting Cognitive Behavioral Therapy for university students in Nairobi
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="text-xs bg-blue-900/50 text-blue-300 px-3 py-1 rounded-full">Anxiety</span>
-                  <span className="text-xs bg-purple-900/50 text-purple-300 px-3 py-1 rounded-full">CBT</span>
-                  <span className="text-xs bg-green-900/50 text-green-300 px-3 py-1 rounded-full">Students</span>
-                </div>
-                <div className="flex justify-between items-center text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <span>👤</span>
-                    <span>Dr. Jane Mwangi</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1">
-                      <ThumbsUp className="w-4 h-4" />
-                      <span>42</span>
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <ArrowDown className="w-4 h-4" />
-                      <span>128</span>
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
 
-              {/* Resource 2 */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-colors shadow-sm"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="bg-blue-900/30 p-3 rounded-lg">
-                    <span className="text-2xl">📝</span>
+                {/* View All Button */}
+                {communityResources.length > 6 && (
+                  <div className="text-center mt-8">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => router.push('/academic-resources')}
+                      className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-8 py-3 rounded-xl font-medium"
+                    >
+                      View All {communityResources.length} Resources
+                    </motion.button>
                   </div>
-                  <span className="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">APPROVED</span>
-                </div>
-                <h3 className="text-lg font-bold text-gray-800 mb-2">
-                  Digital Mental Health Interventions Review
-                </h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Systematic review of mobile app effectiveness for depression treatment
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="text-xs bg-blue-900/50 text-blue-300 px-3 py-1 rounded-full">Digital Health</span>
-                  <span className="text-xs bg-purple-900/50 text-purple-300 px-3 py-1 rounded-full">Apps</span>
-                  <span className="text-xs bg-red-900/50 text-red-300 px-3 py-1 rounded-full">Depression</span>
-                </div>
-                <div className="flex justify-between items-center text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <span>👤</span>
-                    <span>Research Team KU</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1">
-                      <ThumbsUp className="w-4 h-4" />
-                      <span>56</span>
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <ArrowDown className="w-4 h-4" />
-                      <span>187</span>
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Resource 3 */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-colors shadow-sm"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="bg-yellow-900/30 p-3 rounded-lg">
-                    <span className="text-2xl">📄</span>
-                  </div>
-                  <span className="text-xs bg-yellow-900 text-yellow-300 px-2 py-1 rounded">UNDER REVIEW</span>
-                </div>
-                <h3 className="text-lg font-bold text-gray-800 mb-2">
-                  Traditional Healing Integration Paper
-                </h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Exploring integration of traditional African healing with modern psychotherapy
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="text-xs bg-orange-900/50 text-orange-300 px-3 py-1 rounded-full">Traditional Healing</span>
-                  <span className="text-xs bg-green-900/50 text-green-300 px-3 py-1 rounded-full">Culture</span>
-                  <span className="text-xs bg-purple-900/50 text-purple-300 px-3 py-1 rounded-full">Integration</span>
-                </div>
-                <div className="flex justify-between items-center text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <span>👤</span>
-                    <span>Cultural Psychiatry Group</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1">
-                      <ThumbsUp className="w-4 h-4" />
-                      <span>0</span>
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <ArrowDown className="w-4 h-4" />
-                      <span>0</span>
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
+                )}
+              </>
+            )}
 
             {/* Upload Resource Button */}
             <div className="text-center mt-8">
@@ -1673,7 +2019,6 @@ export default function EducationPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => {
-                // Download all citation formats
                 downloadCitation('apa');
                 setTimeout(() => downloadCitation('mla'), 300);
                 setTimeout(() => downloadCitation('chicago'), 600);

@@ -1,9 +1,11 @@
+// app/chat/anxiety/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { ensureSessionAnonymousName } from '@/utils/sessionAnon';
 import { 
   Edit2, 
   Trash2, 
@@ -213,8 +215,109 @@ const roomInfo = {
     name: 'Anxiety Support Room',
     description: 'Discuss anxiety, panic attacks, and coping strategies',
     rules: ['Be kind and supportive', 'No medical advice', 'Respect privacy']
-  },
-  // ... other rooms
+  }
+};
+
+// User utility functions (moved from utils/userUtils.ts for simplicity)
+const getUserFromLocalStorage = () => {
+  try {
+    const userData = localStorage.getItem('anonymousUser');
+    
+    if (!userData) {
+      // Create new anonymous user
+      return createNewAnonymousUser();
+    }
+    
+    // Try to parse as JSON
+    try {
+      const parsed = JSON.parse(userData);
+      
+      // If it's a string (old format), migrate it
+      if (typeof parsed === 'string') {
+        console.log('Migrating string user data to object format');
+        return migrateStringUser(parsed);
+      }
+      
+      // If it's an object but missing required fields, fix it
+      if (typeof parsed === 'object' && parsed !== null) {
+        return fixUserObject(parsed);
+      }
+      
+      // If we get here, it's some other type
+      return createNewAnonymousUser();
+      
+    } catch (parseError) {
+      // Data is not valid JSON - it's a plain string
+      console.log('User data is not JSON, migrating:', userData);
+      return migrateStringUser(userData);
+    }
+  } catch (error) {
+    console.error('Error getting user from localStorage:', error);
+    // Fallback to creating a new user
+    return createNewAnonymousUser();
+  }
+};
+
+const saveUserToLocalStorage = (user: any) => {
+  try {
+    localStorage.setItem('anonymousUser', JSON.stringify(user));
+  } catch (error) {
+    console.error('Error saving user to localStorage:', error);
+  }
+};
+
+const createNewAnonymousUser = () => {
+  const userId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const userName = `Anonymous_${Math.random().toString(36).substr(2, 6)}`;
+  
+  const newUser = {
+    id: userId,
+    name: userName,
+    avatar: null,
+    color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+    created: new Date().toISOString()
+  };
+  
+  saveUserToLocalStorage(newUser);
+  return newUser;
+};
+
+const migrateStringUser = (userString: string) => {
+  const migratedUser = {
+    id: `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: userString.substring(0, 30), // Limit name length
+    avatar: null,
+    color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+    created: new Date().toISOString()
+  };
+  
+  saveUserToLocalStorage(migratedUser);
+  return migratedUser;
+};
+
+const fixUserObject = (userObj: any) => {
+  const fixedUser = {
+    id: userObj.id || `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: userObj.name || userObj.user_name || `Anonymous_${Math.random().toString(36).substr(2, 6)}`,
+    avatar: userObj.avatar || null,
+    color: userObj.color || `#${Math.floor(Math.random()*16777215).toString(16)}`,
+    created: userObj.created || new Date().toISOString()
+  };
+  
+  // Only save if we had to fix something
+  if (!userObj.id || !userObj.name) {
+    saveUserToLocalStorage(fixedUser);
+  }
+  
+  return fixedUser;
+};
+
+const getUserForChat = () => {
+  const user = getUserFromLocalStorage();
+  return {
+    id: user.id,
+    name: user.name
+  };
 };
 
 export default function AnxietyChatPage() {
@@ -222,6 +325,7 @@ export default function AnxietyChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [sessionAnonymousName, setSessionAnonymousName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
   const [onlineCount, setOnlineCount] = useState(0);
@@ -244,7 +348,6 @@ export default function AnxietyChatPage() {
   const [showActionsId, setShowActionsId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ReplyData | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  // Admin mode (for moderation tools). Set `localStorage.setItem('isAdmin','true')` to enable.
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
@@ -257,6 +360,8 @@ export default function AnxietyChatPage() {
   
   const channelRef = useRef<RealtimeChannel | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const addedMessageIdsRef = useRef<Set<string>>(new Set());
@@ -264,10 +369,19 @@ export default function AnxietyChatPage() {
   const roomData = roomInfo[roomId];
   const currentThemeConfig = themes[currentTheme][isDarkMode ? 'dark' : 'light'];
 
-  // Auto-scroll to bottom when messages change
+  const updateStickiness = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
+    shouldStickToBottomRef.current = distanceFromBottom < 120;
+  };
+
+  // Smart auto-scroll: only follow new messages when user is already near bottom.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, replyingTo]);
+    if (shouldStickToBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   // Handle click outside to close action menus
   useEffect(() => {
@@ -297,7 +411,7 @@ export default function AnxietyChatPage() {
   }, [isLoading, router]);
 
   // Setup real-time subscription
-  const setupRealtime = async (userId: string) => {
+  const setupRealtime = async (userId: string, sessionName: string) => {
     try {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
@@ -325,7 +439,7 @@ export default function AnxietyChatPage() {
       channel.on(
         'postgres_changes',
         {
-          event: '*', // Listen to ALL events
+          event: '*',
           schema: 'public',
           table: 'chat_messages',
           filter: `room_id=eq.${roomId}`
@@ -378,7 +492,7 @@ export default function AnxietyChatPage() {
         if (status === 'SUBSCRIBED') {
           await channel.track({
             user_id: userId,
-            user_name: currentUser?.name || 'Anonymous',
+            user_name: sessionName || 'Anonymous',
             online_at: new Date().toISOString(),
             room: roomId
           });
@@ -399,19 +513,11 @@ export default function AnxietyChatPage() {
   useEffect(() => {
     const initializeChat = async () => {
       try {
-        const userData = localStorage.getItem('anonymousUser');
-        if (!userData) {
-          setIsLoading(false);
-          return;
-        }
-        
-        let user = JSON.parse(userData);
-        if (!user.id) {
-          user.id = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          localStorage.setItem('anonymousUser', JSON.stringify(user));
-        }
-        
+        // Use the utility function to get user
+        const user = getUserFromLocalStorage();
         setCurrentUser(user);
+        const currentSessionName = ensureSessionAnonymousName();
+        setSessionAnonymousName(currentSessionName);
 
         // Load messages with CRUD columns
         console.log('Loading initial messages...');
@@ -419,7 +525,7 @@ export default function AnxietyChatPage() {
           .from('chat_messages')
           .select('*')
           .eq('room_id', roomId)
-          .eq('is_deleted', false) // Only load non-deleted messages
+          .eq('is_deleted', false)
           .order('created_at', { ascending: true })
           .limit(100);
 
@@ -433,7 +539,7 @@ export default function AnxietyChatPage() {
           setMessages(data);
         }
 
-        await setupRealtime(user.id);
+        await setupRealtime(user.id, currentSessionName);
 
       } catch (error) {
         console.error('Error initializing chat:', error);
@@ -459,7 +565,8 @@ export default function AnxietyChatPage() {
     if (!newMessage.trim() || !currentUser) return;
     
     try {
-      const user = JSON.parse(localStorage.getItem('anonymousUser')!);
+      const user = getUserForChat();
+      const currentSessionName = sessionAnonymousName || ensureSessionAnonymousName();
       const messageText = newMessage.trim();
       
       // Create temporary message for optimistic update
@@ -468,7 +575,7 @@ export default function AnxietyChatPage() {
         id: tempId,
         room_id: roomId,
         user_id: user.id,
-        user_name: user.name,
+        user_name: currentSessionName,
         message: messageText,
         created_at: new Date().toISOString(),
         is_edited: false,
@@ -489,7 +596,7 @@ export default function AnxietyChatPage() {
       const messageData: any = {
         room_id: roomId,
         user_id: user.id,
-        user_name: user.name,
+        user_name: currentSessionName,
         message: messageText,
         is_edited: false,
         is_deleted: false
@@ -532,7 +639,7 @@ export default function AnxietyChatPage() {
 
   // UPDATE: Start editing a message
   const startEdit = (message: Message) => {
-    if (message.user_id !== currentUser.id || message.is_deleted) return;
+    if (message.user_id !== currentUser?.id || message.is_deleted) return;
     setEditingId(message.id);
     setEditText(message.message);
     setShowActionsId(null);
@@ -541,7 +648,7 @@ export default function AnxietyChatPage() {
 
   // UPDATE: Save edited message
   const saveEdit = async () => {
-    if (!editingId || !editText.trim()) return;
+    if (!editingId || !editText.trim() || !currentUser) return;
     
     try {
       const payload: any = {
@@ -550,7 +657,7 @@ export default function AnxietyChatPage() {
         edited_at: new Date().toISOString()
       };
 
-      // Diagnostic pre-check: fetch the message row to verify existence and owner
+      // Diagnostic pre-check
       const fetch = await supabase
         .from('chat_messages')
         .select('id,user_id,message,deleted_at,is_deleted')
@@ -570,13 +677,13 @@ export default function AnxietyChatPage() {
           return;
         }
         if (row.user_id !== currentUser.id) {
-          console.warn('Permission mismatch: attempting to edit a message owned by another user', { editingId, owner: row.user_id, currentUser: currentUser.id });
-          alert('Failed to edit message: permission denied (not the message owner)');
+          console.warn('Permission mismatch', { editingId, owner: row.user_id, currentUser: currentUser.id });
+          alert('Failed to edit message: permission denied');
           return;
         }
       }
 
-      // Try update, retrying once if server reports a missing column
+      // Try update
       let res = await supabase
         .from('chat_messages')
         .update(payload)
@@ -604,16 +711,16 @@ export default function AnxietyChatPage() {
         return;
       }
 
-      // Check results (select returns an array)
+      // Check results
       if (!res.data || (Array.isArray(res.data) && res.data.length === 0)) {
         console.warn('Edit update succeeded but returned no rows', { editingId, payload, res });
-        alert('Failed to edit message: no rows updated (message not found or permission denied)');
+        alert('Failed to edit message: no rows updated');
         return;
       }
 
       const updatedMsg = Array.isArray(res.data) ? res.data[0] : res.data;
 
-      // Optimistically update UI (server real-time will also propagate)
+      // Optimistically update UI
       setMessages(prev => prev.map(m => m.id === editingId ? {
         ...m,
         message: updatedMsg.message || editText.trim(),
@@ -638,7 +745,7 @@ export default function AnxietyChatPage() {
 
   // DELETE: Execute delete
   const deleteMessage = async () => {
-    if (!confirmDeleteId) return;
+    if (!confirmDeleteId || !currentUser) return;
     
     try {
       const payload: any = {
@@ -647,7 +754,7 @@ export default function AnxietyChatPage() {
         message: '[Message deleted]'
       };
 
-      // Diagnostic pre-check: fetch the message row to verify existence and owner
+      // Diagnostic pre-check
       const fetchDelete = await supabase
         .from('chat_messages')
         .select('id,user_id,message,is_deleted,deleted_at')
@@ -668,13 +775,13 @@ export default function AnxietyChatPage() {
           return;
         }
         if (row.user_id !== currentUser.id) {
-          console.warn('Permission mismatch: attempting to delete a message owned by another user', { confirmDeleteId, owner: row.user_id, currentUser: currentUser.id });
-          alert('Failed to delete message: permission denied (not the message owner)');
+          console.warn('Permission mismatch', { confirmDeleteId, owner: row.user_id, currentUser: currentUser.id });
+          alert('Failed to delete message: permission denied');
           return;
         }
       }
 
-      // Try update and retry once if server reports a missing column
+      // Try update
       let res = await supabase
         .from('chat_messages')
         .update(payload)
@@ -704,7 +811,7 @@ export default function AnxietyChatPage() {
 
       if (!res.data || (Array.isArray(res.data) && res.data.length === 0)) {
         console.warn('Delete update succeeded but returned no rows', { confirmDeleteId, payload, res });
-        alert('Failed to delete message: no rows updated (message not found or permission denied)');
+        alert('Failed to delete message: no rows updated');
         return;
       }
 
@@ -760,8 +867,40 @@ export default function AnxietyChatPage() {
   };
 
   // Check if message is from current user
-  const isOwnMessage = (userId: string) => {
-    return userId === currentUser?.id;
+  const isOwnMessage = (messageUserId?: string, messageUserName?: string) => {
+    const normalize = (value?: string | null) => value?.trim().toLowerCase() || '';
+    const activeSessionName = normalize(sessionAnonymousName);
+    const incomingName = normalize(messageUserName);
+
+    // Primary source of truth for UI ownership: current session anonymous name.
+    if (activeSessionName && incomingName) {
+      return incomingName === activeSessionName;
+    }
+
+    // Fallback when stored message IDs are inconsistent.
+    const localStoredName = (() => {
+      try {
+        const raw = localStorage.getItem('anonymousUser');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed?.name || parsed?.anonymous_name || null;
+      } catch {
+        return null;
+      }
+    })();
+
+    const activeNames = new Set(
+      [sessionAnonymousName, currentUser?.name, localStoredName].filter(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0
+      )
+    );
+
+    if (messageUserName && activeNames.has(messageUserName)) {
+      return true;
+    }
+
+    const currentUserId = currentUser?.id?.toString();
+    return !!(currentUserId && messageUserId && messageUserId.toString() === currentUserId);
   };
 
   // Get parent message for replies
@@ -791,58 +930,21 @@ export default function AnxietyChatPage() {
       <main className={`flex min-h-screen w-full max-w-5xl flex-col py-8 px-4 ${currentThemeConfig.bg}`}>
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <button 
-                onClick={() => router.push('/chat-rooms')}
-                className={`${currentThemeConfig.primary} hover:opacity-80 mb-2`}
-              >
-                ← Back to Rooms
-              </button>
-              <h1 className={`text-3xl font-bold ${currentThemeConfig.text}`}>{roomData.name}</h1>
-              <p className={`${currentThemeConfig.subtext} text-sm mt-1`}>{roomData.description}</p>
-              <div className="flex items-center gap-3 mt-3">
-                <p className={`${currentThemeConfig.subtext} text-sm`}>
-                  ● {connectionStatus === 'connected' ? 'Live' : 'Offline'} • 🔒 Anonymous • ✏️ Edit/Delete • 💬 Reply
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className={`text-2xl font-bold ${currentThemeConfig.primary} mb-1`}>{onlineCount} online</p>
-              <p className={`${currentThemeConfig.subtext} text-sm`}>You: {currentUser.name}</p>
-              {/* Admin toggle for local dev/testing only. Enable by running in console: localStorage.setItem('isAdmin','true') */}
-              <div className="mt-2">
-                <label className={`text-xs ${currentThemeConfig.subtext} inline-flex items-center gap-2`}> 
-                  <input
-                    type="checkbox"
-                    checked={isAdmin}
-                    onChange={(e) => { localStorage.setItem('isAdmin', e.target.checked ? 'true' : 'false'); setIsAdmin(e.target.checked); }}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-xs">Admin mode</span>
-                </label>
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className={`${currentThemeConfig.card} rounded-lg p-3 border`}>
-              <p className={`${currentThemeConfig.subtext} text-sm mb-1`}>💬 Messages</p>
-              <p className={`${currentThemeConfig.text} font-bold`}>{messages.filter(m => !m.is_deleted).length}</p>
-            </div>
-            <div className={`${currentThemeConfig.card} rounded-lg p-3 border`}>
-              <p className={`${currentThemeConfig.subtext} text-sm mb-1`}>📋 Room Rules</p>
-              <ul className={`${currentThemeConfig.subtext} text-xs space-y-1`}>
-                {roomData.rules.map((rule: string, i: number) => (
-                  <li key={i}>• {rule}</li>
-                ))}
-              </ul>
-            </div>
+          <h1 className={`text-3xl font-bold ${currentThemeConfig.text}`}>{roomData.name}</h1>
+          <p className={`${currentThemeConfig.subtext} text-sm mt-1`}>{roomData.description}</p>
+          <div className="flex items-center gap-3 mt-3">
+            <p className={`${currentThemeConfig.subtext} text-sm`}>
+              Status: {connectionStatus === 'connected' ? 'Live' : 'Disconnected'}
+            </p>
           </div>
         </div>
-        
+
         {/* Chat Messages Container */}
-        <div className={`flex-1 border-2 rounded-lg p-4 mb-4 h-96 overflow-y-auto ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-300'}`}>
+        <div
+          ref={messagesContainerRef}
+          onScroll={updateStickiness}
+          className={`flex-1 border-2 rounded-lg p-4 mb-4 h-96 overflow-y-auto ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-300'}`}
+        >
           {messages.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <p className={currentThemeConfig.subtext}>Start the conversation! Be the first to share.</p>
@@ -850,7 +952,7 @@ export default function AnxietyChatPage() {
           ) : (
             <div className="space-y-4">
               {messages.map((msg) => {
-                const isOwn = isOwnMessage(msg.user_id);
+                const isOwn = isOwnMessage(msg.user_id, msg.user_name);
                 const parentMsg = msg.parent_message_id ? getParentMessage(msg.parent_message_id) : null;
                 
                 return (
@@ -1054,25 +1156,20 @@ export default function AnxietyChatPage() {
           </button>
         </div>
         
-        {/* CRUD Instructions */}
-        <div className={`mt-4 p-3 rounded border ${currentThemeConfig.card} ${currentThemeConfig.border}`}>
-          <p className={`${currentThemeConfig.subtext} text-sm mb-2`}>💡 How to use CRUD:</p>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
-            <div className={currentThemeConfig.subtext}>
-              • <span className={currentThemeConfig.primary}>Send</span> messages instantly
-            </div>
-            <div className={currentThemeConfig.subtext}>
-              • <span className={currentThemeConfig.primary}>Hover</span> messages for options
-            </div>
-            <div className={currentThemeConfig.subtext}>
-              • <span className={currentThemeConfig.primary}>Reply</span> to any message
-            </div>
-            <div className={currentThemeConfig.subtext}>
-              • <span className={currentThemeConfig.primary}>Edit/Delete</span> your own messages
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

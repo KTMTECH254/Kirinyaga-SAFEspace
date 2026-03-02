@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { incrementProgressStat } from '@/lib/progress';
 import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -93,6 +94,7 @@ const chatRoomsList = [
 
 export default function ChatRoomsPage() {
   const router = useRouter();
+  const [hasAccess, setHasAccess] = useState(false);
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [totalOnline, setTotalOnline] = useState(0);
@@ -113,6 +115,18 @@ export default function ChatRoomsPage() {
   };
 
   useEffect(() => {
+    const userData = localStorage.getItem('anonymousUser');
+    if (!userData) {
+      router.replace('/login');
+      return;
+    }
+
+    setHasAccess(true);
+  }, [router]);
+
+  useEffect(() => {
+    if (!hasAccess) return;
+
     // Show welcome message on first visit
     const hasVisited = localStorage.getItem('hasVisitedChatRooms');
     if (!hasVisited) {
@@ -163,11 +177,12 @@ export default function ChatRoomsPage() {
     return () => {
       channels.forEach(channel => supabase.removeChannel(channel));
     };
-  }, []);
+  }, [hasAccess]);
 
   const enterChatRoom = (roomId: string) => {
     // Add gentle transition effect
     document.body.style.opacity = '0.95';
+    incrementProgressStat('chatSessions', 1);
     setTimeout(() => {
       router.push(`/chat/${roomId}`);
     }, 300);
@@ -273,6 +288,10 @@ export default function ChatRoomsPage() {
       </div>
     </motion.div>
   );
+
+  if (!hasAccess) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 font-sans overflow-hidden relative transition-colors duration-1000">

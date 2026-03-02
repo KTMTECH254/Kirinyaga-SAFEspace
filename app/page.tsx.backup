@@ -1,0 +1,387 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Feather,
+  Layers,
+  Sunrise,
+  Sprout,
+  MessageCircle,
+  Cloud,
+  Heart
+} from 'lucide-react';
+import BreathingModal from '../components/BreathingModal';
+
+type Mood = {
+  id: string;
+  label: string;
+  emoji: string;
+  color: string;
+  glow: string;
+  soft: string;
+};
+
+export default function Home() {
+  const router = useRouter();
+  const heroRef = useRef<HTMLDivElement | null>(null);
+
+  const moods: Mood[] = [
+    {
+      id: 'calm',
+      label: 'Calm',
+      emoji: '??',
+      color: '#8ab3ff',
+      glow: 'rgba(138, 179, 255, 0.45)',
+      soft: 'rgba(138, 179, 255, 0.2)'
+    },
+    {
+      id: 'grounded',
+      label: 'Grounded',
+      emoji: '??',
+      color: '#b7e4c7',
+      glow: 'rgba(183, 228, 199, 0.45)',
+      soft: 'rgba(183, 228, 199, 0.2)'
+    },
+    {
+      id: 'hopeful',
+      label: 'Hopeful',
+      emoji: '???',
+      color: '#f6c3b3',
+      glow: 'rgba(246, 195, 179, 0.45)',
+      soft: 'rgba(246, 195, 179, 0.22)'
+    },
+    {
+      id: 'tender',
+      label: 'Tender',
+      emoji: '??',
+      color: '#f2b5d4',
+      glow: 'rgba(242, 181, 212, 0.45)',
+      soft: 'rgba(242, 181, 212, 0.22)'
+    },
+    {
+      id: 'steady',
+      label: 'Steady',
+      emoji: '??',
+      color: '#f6e6a6',
+      glow: 'rgba(246, 230, 166, 0.45)',
+      soft: 'rgba(246, 230, 166, 0.22)'
+    }
+  ];
+
+  const [selectedMood, setSelectedMood] = useState<Mood>(moods[0]);
+  const [breathCopy, setBreathCopy] = useState('Inhale light.');
+  const [isBreathingModalOpen, setIsBreathingModalOpen] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--theme-color', selectedMood.color);
+    root.style.setProperty('--theme-glow', selectedMood.glow);
+    root.style.setProperty('--theme-soft', selectedMood.soft);
+  }, [selectedMood]);
+
+  useEffect(() => {
+    const phases = [
+      { text: 'Inhale light.', duration: 4000 },
+      { text: 'Pause.', duration: 7000 },
+      { text: 'Release shadow.', duration: 8000 }
+    ];
+
+    let index = 0;
+    let timeoutId: NodeJS.Timeout;
+
+    const schedule = () => {
+      setBreathCopy(phases[index].text);
+      timeoutId = setTimeout(() => {
+        index = (index + 1) % phases.length;
+        schedule();
+      }, phases[index].duration);
+    };
+
+    schedule();
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  const handlePointerMove = (clientX: number, clientY: number) => {
+    const hero = heroRef.current;
+    if (!hero) return;
+    const rect = hero.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+    hero.style.setProperty('--cursor-x', `${x}%`);
+    hero.style.setProperty('--cursor-y', `${y}%`);
+  };
+
+  return (
+    <div className="sanctuary-bg min-h-screen">
+      <section className="px-4 pt-10 pb-8 lg:px-10">
+        <div
+          ref={heroRef}
+          onMouseMove={(event) => handlePointerMove(event.clientX, event.clientY)}
+          onTouchMove={(event) => {
+            const touch = event.touches[0];
+            if (touch) handlePointerMove(touch.clientX, touch.clientY);
+          }}
+          className="relative w-full overflow-hidden rounded-[40px] border border-white/60 bg-white/40 px-8 py-10 shadow-[0_40px_120px_rgba(15,23,42,0.2)] backdrop-blur-[28px] lg:px-12 lg:py-12"
+        >
+          <div className="absolute inset-0 hero-breath sanctuary-bg" />
+          <div className="absolute inset-0 fluid-surface" />
+          <div className="absolute right-0 top-0 h-full w-full lg:w-[50%]">
+            <div className="absolute inset-0 bg-gradient-to-l from-white/60 via-white/20 to-transparent" />
+            <img
+              src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=1000&q=80"
+              alt="Peaceful young adult"
+              className="masked-portrait h-full w-full object-cover"
+            />
+          </div>
+
+          <div className="relative z-10 max-w-xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/60 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600 shadow-sm backdrop-blur-sm">
+              Recent history
+            </div>
+            <h1
+              className="mt-4 text-3xl font-semibold leading-tight text-slate-900 md:text-5xl"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              How are your feelint feeling righty?
+            </h1>
+            <p className="mt-4 text-base text-slate-700 md:text-lg lg:text-xl">
+              A digital sanctuary for quiet check-ins, steady breathing, and gentle connection. Let the field respond
+              to you.
+            </p>
+
+            <div className="mt-10">
+              <p className="text-sm font-semibold text-slate-700">Choose a mood</p>
+              <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
+                {moods.map((mood) => {
+                  const selected = mood.id === selectedMood.id;
+                  return (
+                    <button
+                      key={mood.id}
+                      type="button"
+                      onClick={() => setSelectedMood(mood)}
+                      className={`flex h-20 w-20 min-w-[5rem] flex-col items-center justify-center rounded-full border border-white/70 px-4 text-2xl shadow-[0_10px_25px_rgba(15,23,42,0.12)] backdrop-blur-sm transition-all duration-800 ease-in-out hover:shadow-[0_0_40px_rgba(255,255,255,0.9)] hover:scale-110 ${selected ? 'bg-white/90 ring-2 ring-white/80 scale-105' : 'bg-white/60'
+                        }`}
+                      style={{
+                        boxShadow: selected ? `0 0 40px ${mood.glow}` : undefined
+                      }}
+                      aria-label={mood.label}
+                    >
+                      <span>{mood.emoji}</span>
+                      <span className="mt-1 text-[10px] font-semibold text-slate-700">{mood.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => router.push('/chat-rooms')}
+                className="rounded-full bg-white/80 border border-white/70 backdrop-blur-sm px-6 py-2.5 text-sm font-semibold text-slate-700 shadow-[0_12px_40px_rgba(15,23,42,0.15)] transition-all duration-700 hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(15,23,42,0.2)]"
+              >
+                Find my safe space
+              </button>
+            </div>
+          </div>
+
+
+        </div>
+      </section>
+
+      <section className="px-4 pb-12 lg:px-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2
+              className="text-3xl font-semibold text-slate-900 md:text-4xl"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              Therapeutic Portals
+            </h2>
+            <p className="mt-2 max-w-2xl text-slate-700">
+              Glassmorphic sanctuaries that meet you where you are, each tuned to a different kind of care.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <Leaf size={16} />
+            You are not alone in this field.
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              title: 'Anxiety Support',
+              color: 'rgba(186, 230, 253, 0.5)',
+              glowColor: '#BAE6FD',
+              icon: <Feather size={28} className="text-slate-700" style={{ animation: 'floatingFeather 6s ease-in-out infinite' }} />,
+              text: 'Breathe, release, and settle the storm with peers who understand.',
+              route: '/chat/anxiety'
+            },
+            {
+              title: 'Stress Management',
+              color: 'rgba(217, 249, 157, 0.5)',
+              glowColor: '#D9F99D',
+              icon: <Layers size={28} className="text-slate-700" style={{ animation: 'balancingStones 5s ease-in-out infinite' }} />,
+              text: 'Stacked moments of clarity for the days that feel heavy.',
+              route: '/chat/stress'
+            },
+            {
+              title: 'Depression Support',
+              color: 'rgba(254, 205, 211, 0.5)',
+              glowColor: '#FECDD3',
+              icon: <Sunrise size={28} className="text-slate-700" style={{ animation: 'risingSun 7s ease-in-out infinite' }} />,
+              text: 'Find a warm dawn and steady companions through the fog.',
+              route: '/chat/depression'
+            },
+            {
+              title: 'Recovery Journey',
+              color: 'rgba(253, 230, 138, 0.5)',
+              glowColor: '#FDE68A',
+              icon: <Sprout size={28} className="text-slate-700 float-slow" />,
+              text: 'Track small wins, root deeper, and celebrate every step.',
+              route: '/chat/recovery'
+            }
+          ].map((portal) => (
+            <div
+              key={portal.title}
+              className="glass-portal relative px-6 py-7 hover:scale-[1.02] cursor-pointer group"
+              style={{
+                background: portal.color,
+                boxShadow: `0 0 50px ${portal.glowColor}40, 0 24px 80px rgba(15, 23, 42, 0.15)`
+              }}
+              onClick={() => router.push(portal.route)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="rounded-2xl bg-white/70 p-3.5 shadow-sm backdrop-blur-sm">
+                  {portal.icon}
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(portal.route);
+                  }}
+                  className="rounded-full border border-white/70 bg-white/80 px-4 py-2 text-xs font-semibold text-slate-700 backdrop-blur-sm transition-all duration-500 hover:bg-white hover:shadow-lg"
+                >
+                  Enter
+                </button>
+              </div>
+              <h3 className="mt-5 text-xl font-semibold text-slate-900">{portal.title}</h3>
+              <p className="mt-2 text-sm text-slate-700 leading-relaxed">{portal.text}</p>
+              <div className="mt-6 flex items-center gap-2">
+                <div className="flex -space-x-2">
+                  {[
+                    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=100&q=80',
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80',
+                    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=100&q=80',
+                    'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=100&q=80'
+                  ].map((src, index) => (
+                    <img
+                      key={`${portal.title}-avatar-${index}`}
+                      src={src}
+                      alt="Community member"
+                      className="h-9 w-9 rounded-full border-2 border-white object-cover ring-1 ring-slate-200"
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-slate-600 font-medium">Community presence</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-8 px-4 pb-16 lg:grid-cols-[1.2fr_0.8fr] lg:px-10">
+        <div className="glass-portal relative px-6 py-8">
+          <h3
+            className="text-2xl font-semibold text-slate-900"
+            style={{ fontFamily: 'var(--font-serif)' }}
+          >
+            The Growth Garden
+          </h3>
+          <p className="mt-2 text-sm text-slate-700">
+            Your progress grows organically. Every check-in adds a leaf, every brave moment blooms.
+          </p>
+
+          <div className="mt-8 flex items-end gap-6">
+            <div className="relative h-40 w-32">
+              <div className="absolute bottom-0 left-1/2 h-28 w-2 -translate-x-1/2 rounded-full bg-gradient-to-t from-emerald-500/70 to-emerald-200/60" />
+              <div className="absolute bottom-20 left-1/2 h-6 w-6 -translate-x-1/2 rounded-full bg-emerald-200/70 shadow-[0_0_30px_rgba(16,185,129,0.6)]" />
+              <div className="absolute bottom-10 left-1/2 h-10 w-16 -translate-x-1/2 rounded-full bg-emerald-100/80 blur-[1px]" />
+              <div className="absolute bottom-16 left-1/2 h-14 w-20 -translate-x-1/2 rounded-full bg-emerald-200/70 blur-[2px]" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-600">Weekly activity</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">14 gentle moments</p>
+              <button
+                type="button"
+                onClick={() => router.push('/progress')}
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700"
+              >
+                <Sprout size={16} />
+                View my garden
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-portal relative px-6 py-8">
+          <div className="flex items-center justify-between">
+            <h3
+              className="text-2xl font-semibold text-slate-900"
+              style={{ fontFamily: 'var(--font-serif)' }}
+            >
+              Breathing Circle
+            </h3>
+            <span className="text-xs text-slate-600">19s cycle</span>
+          </div>
+          <div className="mt-6 flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setIsBreathingModalOpen(true)}
+              className="breath-orb flex h-32 w-32 items-center justify-center rounded-full border border-white/60 bg-white/50 shadow-[0_0_60px_var(--theme-glow)] cursor-pointer hover:scale-105 transition-all duration-1000 ease-in-out"
+            >
+              <MessageCircle size={28} className="text-slate-700" />
+            </button>
+            <p className="mt-4 text-sm font-semibold text-slate-700">{breathCopy}</p>
+            <p className="mt-2 text-xs text-slate-500">Soft thud haptics, if enabled.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 pb-20 lg:px-10">
+        <div className="glass-portal relative px-6 py-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3
+                className="text-2xl font-semibold text-slate-900"
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                Gradient River
+              </h3>
+              <p className="mt-2 text-sm text-slate-700">
+                Mood history flows as color, not numbers. Swipe to feel the shifts.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push('/progress')}
+              className="rounded-full border border-white/70 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700"
+            >
+              Open history
+            </button>
+          </div>
+          <div className="mt-6 h-28 rounded-[32px] gradient-river shadow-[inset_0_0_30px_rgba(255,255,255,0.5)]" />
+        </div>
+      </section>
+
+      <BreathingModal
+        isOpen={isBreathingModalOpen}
+        onClose={() => setIsBreathingModalOpen(false)}
+      />
+    </div>
+  );
+}

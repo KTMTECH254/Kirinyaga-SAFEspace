@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { clearSessionAnonymousName, getSessionAnonymousName, ensureSessionAnonymousName } from '@/utils/sessionAnon';
 import { 
   User, 
   Settings, 
@@ -40,6 +41,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
   const [showRecovery, setShowRecovery] = useState(false);
+  const [sessionAnonymousName, setSessionAnonymousNameState] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('anonymousUser');
@@ -47,6 +49,7 @@ export default function ProfilePage() {
       const userData = JSON.parse(stored);
       setUser(userData);
       setNewName(userData.anonymous_name);
+      setSessionAnonymousNameState(ensureSessionAnonymousName());
     } else {
       router.push('/login');
     }
@@ -72,6 +75,7 @@ export default function ProfilePage() {
 
   const handleLogout = () => {
     localStorage.removeItem('anonymousUser');
+    clearSessionAnonymousName();
     router.push('/login');
   };
 
@@ -154,6 +158,11 @@ export default function ProfilePage() {
                     </>
                   )}
                 </div>
+                {sessionAnonymousName && (
+                  <p className="text-xs text-indigo-200 mt-2">
+                    Session anonymous name: {sessionAnonymousName}
+                  </p>
+                )}
                 <p className="text-indigo-200 flex items-center justify-center md:justify-start gap-2">
                   <Shield className="w-4 h-4" />
                   Anonymous Identity Protected
