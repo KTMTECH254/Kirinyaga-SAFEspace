@@ -127,9 +127,15 @@ export default function LoginPage() {
         return;
       }
 
+      if (!existingProfile) {
+        setError('Profile not found. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
       // Store user info in localStorage for the app to use
       const userInfo = {
-        id: existingProfile!.id,
+        id: existingProfile.id,
         name: existingProfile.anonymous_name,
         isAnonymous: true,
         loginTime: new Date().toISOString(),
@@ -141,7 +147,7 @@ export default function LoginPage() {
       sessionStorage.setItem('currentSession', JSON.stringify({
         sessionStart: new Date().toISOString(),
         userName: existingProfile.anonymous_name,
-        userId: existingProfile!.id,
+        userId: existingProfile.id,
         sessionAnonymousName
       }));
 
