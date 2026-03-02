@@ -499,7 +499,7 @@ export default function AnxietyChatPage() {
         }
         
         if (status === 'CHANNEL_ERROR') {
-          setTimeout(() => setupRealtime(userId), 3000);
+          setTimeout(() => setupRealtime(userId, sessionName), 3000);
         }
       });
 

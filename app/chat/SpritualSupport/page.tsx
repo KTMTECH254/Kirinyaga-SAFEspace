@@ -499,7 +499,7 @@ export default function SpritualSupport() {
         }
         
         if (status === 'CHANNEL_ERROR') {
-          setTimeout(() => setupRealtime(userId), 3000);
+          setTimeout(() => setupRealtime(userId, sessionName), 3000);
         }
       });
 
@@ -1154,7 +1154,8 @@ export default function SpritualSupport() {
             <Send className="w-5 h-5" />
             Send
           </button>
-        </div>\n      </main>
+        </div>
+\n      </main>
     </div>
   );
 }
