@@ -687,11 +687,12 @@ export default function EducationPage() {
           
           // Handle different event types
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const resource = payload.new;
-            
+            const oldResource = (payload.old ?? {}) as Record<string, any>;
+            const resource = (payload.new ?? {}) as Record<string, any>;
+             
             // Show notification ONLY for genuine admin approvals from pending to approved
             // This should NOT trigger for any user interactions (votes, downloads, etc.)
-            const oldStatus = payload.old?.status;
+            const oldStatus = oldResource.status;
             const newStatus = resource.status;
 
             // Only show notification for admin approval: status change from pending to approved
@@ -700,15 +701,15 @@ export default function EducationPage() {
               payload.eventType === 'UPDATE' &&
               oldStatus === 'pending' &&
               newStatus === 'approved' &&
-              payload.new?.reviewed_at &&
-              payload.old?.reviewed_at !== payload.new.reviewed_at &&
+              resource.reviewed_at &&
+              oldResource.reviewed_at !== resource.reviewed_at &&
               // CRITICAL: Ensure this is NOT triggered by user votes or downloads
-              payload.old?.upvotes === payload.new?.upvotes &&
-              payload.old?.downvotes === payload.new?.downvotes &&
-              payload.old?.downloads === payload.new?.downloads &&
+              oldResource.upvotes === resource.upvotes &&
+              oldResource.downvotes === resource.downvotes &&
+              oldResource.downloads === resource.downloads &&
               // Additional safety: ensure no other fields changed that would indicate user interaction
-              payload.old?.title === payload.new?.title &&
-              payload.old?.description === payload.new?.description;
+              oldResource.title === resource.title &&
+              oldResource.description === resource.description;
 
             if (isAdminApproval) {
               showNotification('New resource approved!', 'success');
@@ -732,7 +733,7 @@ export default function EducationPage() {
           
           // Handle deletions
           if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old.id;
+            const deletedId = (payload.old as { id?: string } | null)?.id;
             setCommunityResources(prev => prev.filter(r => r.id !== deletedId));
             showNotification('🗑️ Resource removed', 'info');
           }
