@@ -748,16 +748,20 @@ All data is anonymous and aggregated for privacy protection.
       }
 
       if (topContent.topResources.length) {
+        const resourcesStartY =
+          ((doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 36) + 8;
         autoTable(doc, {
-          startY: (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY + 8,
+          startY: resourcesStartY,
           head: [['Top Resources', 'Downloads', 'Author']],
           body: topContent.topResources.map(r => [r.title, String(r.downloads), r.author])
         });
       }
 
       if (dailyActivity.length) {
+        const activityStartY =
+          ((doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 36) + 8;
         autoTable(doc, {
-          startY: (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY + 8,
+          startY: activityStartY,
           head: [['Date', 'Users', 'Messages', 'Resources', 'Downloads']],
           body: dailyActivity.map(d => [d.date, String(d.users), String(d.messages), String(d.resources), String(d.downloads)])
         });
