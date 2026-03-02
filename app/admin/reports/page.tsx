@@ -314,7 +314,7 @@ export default function ReportsDashboard() {
     try {
       const { data: messages } = await supabase
         .from('chat_messages')
-        .select('created_at')
+        .select('created_at, user_id')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
 
@@ -352,7 +352,9 @@ export default function ReportsDashboard() {
         if (!userSetPerDay[dateStr]) {
           userSetPerDay[dateStr] = new Set();
         }
-        userSetPerDay[dateStr].add(msg.user_id);
+        if (msg.user_id) {
+          userSetPerDay[dateStr].add(msg.user_id);
+        }
       });
 
       // Add resource downloads
