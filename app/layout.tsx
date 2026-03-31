@@ -87,7 +87,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <head>
-        <title>Kirinyaga Safespace - Mental Health Support</title>
+        <title>UNSPOKEN MINDS SAFEspace - Mental Health Support</title>
         <meta name="description" content="Safe, anonymous mental health support platform" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
@@ -111,7 +111,7 @@ export default function RootLayout({
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">
-                      Kirinyaga Safespace
+                      UNSPOKEN MINDS SAFEspace
                     </h1>
                     <p className="text-xs text-gray-500 font-medium">Mental Health Support Platform</p>
                   </div>
@@ -222,7 +222,7 @@ export default function RootLayout({
                     <Heart size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Kirinyaga Safespace</h3>
+                    <h3 className="text-xl font-bold text-gray-900">UNSPOKEN MINDS SAFEspace</h3>
                     <p className="text-sm text-gray-600">Safe and Anonymous Support</p>
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export default function RootLayout({
             <div className="mt-12 pt-8 border-t border-gray-200">
               <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-6 text-sm text-gray-600">
-                  <span>Copyright {new Date().getFullYear()} Kirinyaga Safespace</span>
+                  <span>Copyright {new Date().getFullYear()} UNSPOKEN MINDS SAFEspace</span>
                   <span className="hidden md:inline">·</span>
                   <div className="flex items-center gap-2">
                     <Lock size={14} />

@@ -119,7 +119,7 @@ export async function generatePDFReport(data: ReportData, title: string = 'Platf
       doc.internal.pageSize.height - 10
     );
     doc.text(
-      'Kirinyaga Safespace - Confidential',
+      'UNSPOKEN MINDS SAFEspace - Confidential',
       margin,
       doc.internal.pageSize.height - 10
     );

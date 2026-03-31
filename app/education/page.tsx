@@ -2065,7 +2065,7 @@ export default function EducationPage() {
         <div className="container mx-auto px-4 text-center">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
             <div className="text-left">
-              <h4 className="font-bold text-gray-800 mb-2">Kirinyaga Safespace Education Center</h4>
+              <h4 className="font-bold text-gray-800 mb-2">UNSPOKEN MINDS SAFEspace Education Center</h4>
               <p className="text-gray-600 text-sm">Evidence-based mental health education</p>
             </div>
             <div className="flex items-center gap-4">

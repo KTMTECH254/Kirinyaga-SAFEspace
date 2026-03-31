@@ -119,7 +119,7 @@ export default function Home() {
                 transition={{ duration: 0.6 }}
               >
                 <h2 className={`text-3xl sm:text-4xl font-semibold text-center ${playfair.className} mb-4`}>
-                  About Kirinyaga Safespace
+                  About UNSPOKEN MINDS SAFEspace
                 </h2>
                 <p className={`text-center text-white/60 ${inter.className} mb-12 max-w-2xl mx-auto`}>
                   A compassionate initiative dedicated to providing accessible mental health support 

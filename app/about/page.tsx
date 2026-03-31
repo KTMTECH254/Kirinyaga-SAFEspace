@@ -27,7 +27,7 @@ export default function AboutPage() {
         <section className="relative z-10 py-10">
           <div className="max-w-4xl mx-auto px-6">
             <h1 className={`text-3xl sm:text-4xl font-semibold text-center ${playfair.className} mb-4`}>
-              About Kirinyaga Safespace
+              About UNSPOKEN MINDS SAFEspace
             </h1>
             <p className={`text-center text-white/60 ${inter.className} mb-12 max-w-2xl mx-auto`}>
               A compassionate initiative dedicated to providing accessible mental health support
