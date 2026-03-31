@@ -23,9 +23,12 @@ export async function generateUserReport(filters: ReportFilters) {
     .gte('created_at', filters.startDate.toISOString())
     .lte('created_at', filters.endDate.toISOString());
 
+  const usersList = users ?? [];
+  const messagesList = messages ?? [];
+
   // Calculate user activity
-  const userActivity = users?.map(user => {
-    const userMessages = messages?.filter(m => m.user_id === user.id) || [];
+  const userActivity = usersList.map(user => {
+    const userMessages = messagesList.filter(m => m.user_id === user.id);
     return {
       ...user,
       messageCount: userMessages.length,
@@ -37,12 +40,12 @@ export async function generateUserReport(filters: ReportFilters) {
 
   return {
     summary: {
-      totalUsers: users?.length || 0,
-      activeUsers: new Set(messages?.map(m => m.user_id)).size,
-      avgMessagesPerUser: messages?.length / (users?.length || 1),
-      newUsersToday: users?.filter(u => 
+      totalUsers: usersList.length,
+      activeUsers: new Set(messagesList.map(m => m.user_id)).size,
+      avgMessagesPerUser: messagesList.length / (usersList.length || 1),
+      newUsersToday: usersList.filter(u => 
         new Date(u.created_at) > subDays(new Date(), 1)
-      ).length || 0
+      ).length
     },
     detailed: userActivity,
     generatedAt: new Date().toISOString()
@@ -61,44 +64,45 @@ export async function generateChatReport(filters: ReportFilters) {
   }
 
   const { data: messages } = await query;
+  const messagesList = messages ?? [];
 
   // Group by hour
   const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
     hour,
-    count: messages?.filter(m => 
+    count: messagesList.filter(m => 
       new Date(m.created_at).getHours() === hour
-    ).length || 0
+    ).length
   }));
 
   // Group by day
-  const dailyData = messages?.reduce((acc, message) => {
+  const dailyData = messagesList.reduce((acc, message) => {
     const date = format(new Date(message.created_at), 'yyyy-MM-dd');
     acc[date] = (acc[date] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   // Most active users
-  const userActivity = messages?.reduce((acc, message) => {
+  const userActivity = messagesList.reduce((acc, message) => {
     acc[message.user_name] = (acc[message.user_name] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const topUsers = Object.entries(userActivity || {})
+  const topUsers = Object.entries(userActivity as Record<string, number>)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10);
 
   return {
     summary: {
-      totalMessages: messages?.length || 0,
-      uniqueUsers: new Set(messages?.map(m => m.user_name)).size,
-      avgMessagesPerDay: (messages?.length || 0) / 
+      totalMessages: messagesList.length,
+      uniqueUsers: new Set(messagesList.map(m => m.user_name)).size,
+      avgMessagesPerDay: messagesList.length / 
         Math.ceil((filters.endDate.getTime() - filters.startDate.getTime()) / (1000 * 60 * 60 * 24)),
       peakHour: hourlyData.reduce((max, curr) => curr.count > max.count ? curr : max, hourlyData[0])
     },
     hourlyData,
     dailyData,
     topUsers,
-    messages: messages?.slice(0, 100) // Last 100 messages
+    messages: messagesList.slice(0, 100) // Last 100 messages
   };
 }
 
@@ -114,30 +118,31 @@ export async function generateResourceReport(filters: ReportFilters) {
   }
 
   const { data: resources } = await query;
+  const resourcesList = resources ?? [];
 
   // Calculate statistics
   const stats = {
-    totalResources: resources?.length || 0,
-    approved: resources?.filter(r => r.status === 'approved').length || 0,
-    pending: resources?.filter(r => r.status === 'pending').length || 0,
-    rejected: resources?.filter(r => r.status === 'rejected').length || 0,
-    totalDownloads: resources?.reduce((sum, r) => sum + (r.downloads || 0), 0) || 0,
-    totalUpvotes: resources?.reduce((sum, r) => sum + (r.upvotes || 0), 0) || 0,
-    totalDownvotes: resources?.reduce((sum, r) => sum + (r.downvotes || 0), 0) || 0
+    totalResources: resourcesList.length,
+    approved: resourcesList.filter(r => r.status === 'approved').length,
+    pending: resourcesList.filter(r => r.status === 'pending').length,
+    rejected: resourcesList.filter(r => r.status === 'rejected').length,
+    totalDownloads: resourcesList.reduce((sum, r) => sum + (r.downloads || 0), 0),
+    totalUpvotes: resourcesList.reduce((sum, r) => sum + (r.upvotes || 0), 0),
+    totalDownvotes: resourcesList.reduce((sum, r) => sum + (r.downvotes || 0), 0)
   };
 
   // Top resources by downloads
-  const topDownloads = [...(resources || [])]
+  const topDownloads = [...resourcesList]
     .sort((a, b) => (b.downloads || 0) - (a.downloads || 0))
     .slice(0, 10);
 
   // Top resources by votes
-  const topVotes = [...(resources || [])]
+  const topVotes = [...resourcesList]
     .sort((a, b) => ((b.upvotes || 0) - (b.downvotes || 0)) - ((a.upvotes || 0) - (a.downvotes || 0)))
     .slice(0, 10);
 
   // Resource types distribution
-  const typeDistribution = resources?.reduce((acc, resource) => {
+  const typeDistribution = resourcesList.reduce((acc, resource) => {
     const type = resource.file_type || 'other';
     acc[type] = (acc[type] || 0) + 1;
     return acc;
@@ -148,6 +153,6 @@ export async function generateResourceReport(filters: ReportFilters) {
     topDownloads,
     topVotes,
     typeDistribution,
-    resources: resources?.slice(0, 50) // Last 50 resources
+    resources: resourcesList.slice(0, 50) // Last 50 resources
   };
 }

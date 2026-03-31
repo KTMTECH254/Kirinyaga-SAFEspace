@@ -1,4 +1,9 @@
 // utils/csvExporter.ts
+import { format } from 'date-fns';
+
+type LegacyNavigator = Navigator & {
+  msSaveBlob?: (blob: Blob, defaultName?: string) => boolean;
+};
 export function exportToCSV(data: any[], filename: string) {
   if (!data || data.length === 0) {
     alert('No data to export');
@@ -28,9 +33,11 @@ export function exportToCSV(data: any[], filename: string) {
   const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   
-  if (navigator.msSaveBlob) {
+  const legacyNavigator = navigator as LegacyNavigator;
+
+  if (legacyNavigator.msSaveBlob) {
     // IE 10+
-    navigator.msSaveBlob(blob, filename);
+    legacyNavigator.msSaveBlob(blob, filename);
   } else {
     link.href = URL.createObjectURL(blob);
     link.download = filename;
