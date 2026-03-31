@@ -210,26 +210,46 @@ export default function ReportsDashboard() {
         return;
       }
 
-      const { error: updateError } = await supabase
-        .from('chat_messages')
-        .update({
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-          admin_deleted_by: adminUsername,
-          message: '[Archived by admin: old chat removed]'
-        })
-        .lt('created_at', cutoffDate)
-        .eq('is_deleted', false);
+      const payload: Record<string, string | boolean> = {
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        admin_deleted_by: adminUsername,
+        message: '[Archived by admin: old chat removed]'
+      };
 
-      if (updateError) {
-        throw updateError;
+      let updateResult = await supabase
+        .from('chat_messages')
+        .update(payload)
+        .lt('created_at', cutoffDate)
+        .eq('is_deleted', false)
+        .select('id');
+
+      if (updateResult.error) {
+        const errMsg = String(updateResult.error.message || '');
+        const match = errMsg.match(/Could not find the '([^']+)' column/);
+
+        if (match && payload.hasOwnProperty(match[1])) {
+          delete payload[match[1]];
+          updateResult = await supabase
+            .from('chat_messages')
+            .update(payload)
+            .lt('created_at', cutoffDate)
+            .eq('is_deleted', false)
+            .select('id');
+        }
+      }
+
+      if (updateResult.error) {
+        throw updateResult.error;
       }
 
       await fetchReportData();
       setCleanupMessage(`Archived ${messagesToDelete} chat messages older than ${retentionDays} days.`);
     } catch (error) {
       console.error('Delete old chats error:', error);
-      setCleanupMessage('Failed to delete old chats. Please try again.');
+      setCleanupMessage(
+        `Failed to delete old chats. ${error instanceof Error ? error.message : 'Please try again.'}`
+      );
     } finally {
       setCleaningChats(false);
     }
