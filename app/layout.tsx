@@ -100,7 +100,7 @@ export default function RootLayout({
           }`}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex h-20 items-center justify-between">
+            <div className="flex min-h-20 items-center justify-between py-3">
               <div className="flex items-center">
                 <a href="/" className="flex items-center space-x-3 group">
                   <div className="relative">
@@ -109,9 +109,10 @@ export default function RootLayout({
                       <Heart size={24} className="fill-current" />
                     </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent">
-                      UNSPOKEN MINDS SAFEspace
+                  <div className="leading-tight">
+                    <h1 className="text-lg sm:text-xl xl:text-2xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent leading-[1.05]">
+                      <span className="block sm:inline">UNSPOKEN MINDS</span>{' '}
+                      <span className="block sm:inline">SAFEspace</span>
                     </h1>
                     <p className="text-xs text-gray-500 font-medium">Mental Health Support Platform</p>
                   </div>
