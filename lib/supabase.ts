@@ -1,6 +1,5 @@
 // lib/supabase.ts - FIXED VERSION
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { hash as bcryptHash, compare as bcryptCompare } from 'bcryptjs';
 
 // Validate environment variables
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -10,9 +9,6 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   throw new Error('Missing env: NEXT_PUBLIC_SUPABASE_ANON_KEY');
 }
-
-// Service role key for bypassing RLS
-const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjcGdscnhmYXR0emtlbnBydnRyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjkzNjM5NywiZXhwIjoyMDgyNTEyMzk3fQ.WFiFmtCkeEsjlvappsgv5mAzdCOat-cXXY2hDuJiw1g';
 
 // Create Supabase client with anon key
 export const supabase: SupabaseClient = createClient(
@@ -30,18 +26,6 @@ export const supabase: SupabaseClient = createClient(
         reconnect: true,
         heartbeatIntervalMs: 30000
       }
-    }
-  }
-);
-
-// Create service role client for operations that need to bypass RLS
-export const supabaseAdmin: SupabaseClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  SERVICE_ROLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false
     }
   }
 );
@@ -282,58 +266,17 @@ export const authFunctions = {
     }
   },
 
-  // Hash password for username/password auth
-  hashPassword: async function(password: string) {
-    const saltRounds = 10;
-    return bcryptHash(password, saltRounds);
-  },
-
   // Create user profile with username + password (no email)
   createUserWithPassword: async function(anonymousName: string, password: string) {
     try {
-      // Check if anonymous name is already taken
-      const { data: nameCheck, error: nameCheckError } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('anonymous_name', anonymousName)
-        .single();
-
-      if (nameCheckError && nameCheckError.code !== 'PGRST116') {
-        console.error('Error checking name availability:', nameCheckError);
-        throw nameCheckError;
-      }
-
-      if (nameCheck) {
-        throw new Error('Anonymous name already taken. Please choose a different name.');
-      }
-
-      const password_hash = await this.hashPassword(password);
-
-      // Use service role client to bypass RLS for user_profiles inserts
-      const { data: newProfile, error: insertError, status, statusText } = await supabaseAdmin
-        .from('user_profiles')
-        .insert({
-          anonymous_name: anonymousName,
-          password_hash
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error inserting profile:', {
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint,
-          code: insertError.code,
-          name: (insertError as { name?: string }).name,
-          status,
-          statusText
-        });
-        console.error('Error inserting profile raw:', insertError);
-        throw insertError;
-      }
-
-      return { profile: newProfile as UserProfile, error: null };
+      const response = await fetch('/api/auth/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sign-up', anonymousName, password })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to create profile.');
+      return { profile: result.profile as UserProfile, error: null };
     } catch (error) {
       console.error('Error creating user with password:', error);
       return { profile: null, error };
@@ -364,208 +307,20 @@ export const authFunctions = {
     }
   },
 
-  // Create or get user profile by anonymous name
-  getOrCreateUserProfile: async function(anonymousName: string, userId?: string) {
-    try {
-      let currentUserId = userId;
-
-      // If no userId provided, try to get current user
-      if (!currentUserId) {
-        const { user, error: userError } = await this.getCurrentUser();
-        if (userError || !user) {
-          throw new Error('No authenticated user found. Please sign in first.');
-        }
-        currentUserId = user.id;
-      }
-
-      const isUuid =
-        typeof currentUserId === 'string' &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          currentUserId
-        );
-
-      if (!isUuid) {
-        throw new Error('Invalid user id. Supabase anonymous auth is unavailable or misconfigured.');
-      }
-
-      console.log('Creating profile for userId:', currentUserId);
-
-      // Check if anonymous name is already taken
-      const { data: nameCheck, error: nameCheckError } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('anonymous_name', anonymousName)
-        .single();
-
-      if (nameCheckError && nameCheckError.code !== 'PGRST116') {
-        console.error('Error checking name availability:', nameCheckError);
-        throw nameCheckError;
-      }
-
-      if (nameCheck) {
-        console.log('Name already taken:', nameCheck);
-        throw new Error('Anonymous name already taken. Please choose a different name.');
-      }
-
-      console.log('Name is available, creating profile in database...');
-
-      // Create new profile - use service role client to bypass RLS
-      const { data: newProfile, error: insertError } = await supabaseAdmin
-        .from('user_profiles')
-        .insert({
-          user_id: currentUserId,
-          anonymous_name: anonymousName
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error inserting profile:', insertError);
-        throw insertError;
-      }
-
-      console.log('Profile created successfully in database:', newProfile);
-      return { profile: newProfile, error: null };
-    } catch (error) {
-      console.error('Error getting or creating user profile:', error);
-      return { profile: null, error };
-    }
-  },
-
-  // Get user profile by anonymous name (for sign-in)
-  getUserProfileByName: async function(anonymousName: string) {
-    try {
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('anonymous_name', anonymousName)
-        .single();
-
-      if (error && error.code === 'PGRST116') {
-        console.log('Profile not found in database:', anonymousName);
-        return { profile: null, error: null }; // Name not found
-      }
-
-      if (error) {
-        console.error('Error getting user profile by name:', error);
-        throw error;
-      }
-
-      console.log('Profile found in database:', profile);
-      return { profile, error: null };
-    } catch (error) {
-      console.error('Error getting user profile by name:', error);
-      return { profile: null, error };
-    }
-  },
-
   // Sign in with username + password
   signInWithPassword: async function(anonymousName: string, password: string) {
     try {
-      // Use service role client to bypass RLS for password-based auth
-      const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
-        .select('id, user_id, anonymous_name, password_hash, created_at')
-        .eq('anonymous_name', anonymousName)
-        .single();
-
-      if (error && error.code === 'PGRST116') {
-        return { profile: null, error: new Error('This anonymous name does not exist. Please sign up first.') };
-      }
-
-      if (error) {
-        throw error;
-      }
-
-      const passwordOk = await bcryptCompare(password, profile?.password_hash || '');
-      if (!passwordOk) {
-        return { profile: null, error: new Error('Incorrect password. Please try again.') };
-      }
-
-      return { profile: profile as UserProfile, error: null };
+      const response = await fetch('/api/auth/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sign-in', anonymousName, password })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to sign in.');
+      return { profile: result.profile as UserProfile, error: null };
     } catch (error) {
       console.error('Error signing in with password:', error);
       return { profile: null, error };
-    }
-  },
-
-  // Update profile display name / preferences
-  updateUserProfile: async function(profileId: string, updates: { displayName?: string; preferences?: Record<string, unknown> }) {
-    try {
-      const payload: Record<string, unknown> = {};
-      if (typeof updates.displayName === 'string') {
-        payload.display_name = updates.displayName;
-      }
-      if (updates.preferences) {
-        payload.preferences = updates.preferences;
-      }
-
-      const { data, error } = await supabaseAdmin
-        .from('user_profiles')
-        .update(payload)
-        .eq('id', profileId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error updating user profile details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-      return { profile: data as UserProfile, error: null };
-    } catch (error) {
-      console.error('Error updating user profile:', error);
-      return { profile: null, error };
-    }
-  },
-
-  // Change password for username/password auth
-  changePassword: async function(profileId: string, currentPassword: string, newPassword: string) {
-    try {
-      const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
-        .select('id, password_hash')
-        .eq('id', profileId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile for password change:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-
-      const passwordOk = await bcryptCompare(currentPassword, profile?.password_hash || '');
-      if (!passwordOk) {
-        return { success: false, error: new Error('Current password is incorrect.') };
-      }
-
-      const nextHash = await bcryptHash(newPassword, 10);
-      const { error: updateError } = await supabaseAdmin
-        .from('user_profiles')
-        .update({ password_hash: nextHash })
-        .eq('id', profileId);
-
-      if (updateError) {
-        console.error('Error updating password hash:', {
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-          code: updateError.code
-        });
-        throw updateError;
-      }
-      return { success: true, error: null };
-    } catch (error) {
-      console.error('Error changing password:', error);
-      return { success: false, error };
     }
   }
 };

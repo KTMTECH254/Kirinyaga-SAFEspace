@@ -1,4 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# UNSPOKEN MINDS SAFEspace
+
+UNSPOKEN MINDS SAFEspace is a mental-wellness support platform focused on
+anonymous peer-support spaces, educational resources, and wellbeing tools.
+
+## Source-available terms
+
+Copyright (c) 2026 KIRANGA TOM MURIITHI. All rights reserved.
+
+This is source-available software licensed under the PolyForm Strict License
+1.0.0. Noncommercial use is allowed under that license; redistribution,
+modification, derivative works, and commercial use require prior written
+permission from the owner. See `LICENSE`, `NOTICE`, and `IP_POLICY.md`.
+
+Ideas and feedback are welcome through GitHub Issues. Read `CONTRIBUTING.md`
+before participating. Unsolicited code pull requests are not accepted.
 
 ## Getting Started
 
@@ -17,6 +32,10 @@ bun dev
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+Copy `.env.example` to `.env.local` and set the required Supabase values.
+`SUPABASE_SECRET_KEY` is server-only and must never be committed or exposed to
+the browser.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

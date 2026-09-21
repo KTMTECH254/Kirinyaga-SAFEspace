@@ -1,0 +1,31 @@
+name: Idea or feedback
+description: Suggest an improvement, safety consideration, or research lead.
+title: "[Idea]: "
+labels: [idea]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. Do not include confidential information, personal data,
+        credentials, or crisis details. Submissions are governed by IP_POLICY.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem or opportunity does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Your idea
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Submission terms
+      options:
+        - label: I have read IP_POLICY.md and understand this feedback is voluntary and non-confidential.
+          required: true
+        - label: I grant the owner the rights described in IP_POLICY.md to use and implement this feedback.
+          required: true
