@@ -1,6 +1,6 @@
-# UNSPOKEN MINDS SAFEspace
+# UNSPOKEN MINDS 
 
-UNSPOKEN MINDS SAFEspace is a mental-wellness support platform focused on
+UNSPOKEN MINDS  is a mental-wellness support platform focused on
 anonymous peer-support spaces, educational resources, and wellbeing tools.
 
 ## Source-available terms
