@@ -1160,17 +1160,3 @@ export default function DepressionChatPage() {
   );
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-

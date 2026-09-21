@@ -1,45 +1,32 @@
-# TODO: Implement Anonymous Login System with Custom Names
+# UI Enhancement Plan Progress
 
-## ✅ Completed Features
+## Status: ✅ In Progress
 
-- [x] Add Supabase authentication functions to `lib/supabase.ts` for anonymous sign-in and user profile management.
-- [x] Modify `app/login/page.tsx` to include an input field for users to enter their own anonymous name instead of generating random ones, while preserving the existing UI design and colors.
-- [x] Implement sign-up/sign-in logic in `app/login/page.tsx`: Check if anonymous name exists; if yes, sign in and retrieve profile; if not, create new anonymous user and profile.
-- [x] Use Supabase's anonymous authentication to generate persistent user IDs for tracking interactions.
-- [x] Add authentication protection in `app/layout.tsx` to prevent access to protected pages without signing in.
-- [x] Implement toggle between sign-up and sign-in modes on the login page.
+### 1. Setup Foundation [TODO]
+- ✅ Create app/providers.tsx (ThemeProvider, useTheme hook)
+- ✅ Create utils/chatThemes.ts (centralized chat themes)
+- ✅ Update app/globals.css (CSS vars, animations, utilities)
 
-## ✅ COMPLETED: Anonymous Login System Fully Functional
+### 2. Global Layout & Theme [TODO]
+- [ ] Update app/layout.tsx (wrap with Providers, dark mode toggle)
 
-### What was implemented:
-- [x] **Supabase Authentication**: Added anonymous sign-in functions with fallback to local anonymous users
-- [x] **Custom Anonymous Names**: Users can now create and sign in with their own chosen anonymous names
-- [x] **Persistent Tracking**: User interactions are tracked via user IDs for monitoring and support
-- [x] **Database Setup**: Created user_profiles table with proper Row Level Security policies
-- [x] **UI Integration**: Updated login page with sign-up/sign-in toggle while preserving beautiful design
-- [x] **Error Handling**: Comprehensive error handling and user feedback with detailed logging
-- [x] **Route Protection**: Added authentication guards for protected pages
-- [x] **Fallback System**: System works even if Supabase anonymous auth is disabled
+### 3. Home Page Polish [TODO]
+- [ ] Update app/page.tsx (optimized hero, stats CTA, responsiveness)
 
-### Key Features:
-- ✅ Users create their own anonymous identities
-- ✅ Consistent sign-in with chosen names daily
-- ✅ Name uniqueness validation
-- ✅ Persistent user tracking for monitoring
-- ✅ Beautiful glassmorphism UI preserved
-- ✅ Privacy-focused design maintained
-- ✅ **Fallback System**: Works with or without Supabase anonymous auth
+### 4. Chat System Consistency [TODO]
+- [ ] Refactor app/chat/general/page.tsx (use shared themes)
+- [ ] Apply to other chat pages (anxiety, depression, etc.)
 
-### How it works now:
-1. **Primary**: Tries Supabase anonymous authentication
-2. **Fallback**: If Supabase fails, creates local anonymous users
-3. **Database**: Stores profiles in Supabase when possible
-4. **Tracking**: User IDs enable consistent behavior monitoring
+### 5. Components Enhancement [TODO]
+- [ ] Update components/BreathingModal.tsx (theme-aware, ARIA)
 
-### Database Schema:
-```sql
--- user_profiles table created with proper RLS policies
--- System works with or without Supabase anonymous auth enabled
-```
+### 6. Config & Optimizations [TODO]
+- [ ] Check/update tailwind.config.ts
+- [ ] Test: npm run dev, light/dark mode, mobile
+- [ ] Lighthouse audit (accessibility/performance)
 
-**The anonymous login system is now fully functional!** Try signing up again - it should work regardless of your Supabase anonymous auth settings. The system will automatically use the fallback if needed.
+### 7. Completion
+- [ ] Update this TODO.md to all ✅
+- [ ] attempt_completion
+
+Current step: 1/6

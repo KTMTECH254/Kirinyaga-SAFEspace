@@ -1162,14 +1162,3 @@ export default function AnxietyChatPage() {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-

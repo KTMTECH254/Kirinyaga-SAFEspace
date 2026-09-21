@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { ThemeProvider } from './providers';
 import AnonymousProfile from './components/AnonymousProfile';
 import {
   Menu,
@@ -19,12 +20,26 @@ import {
   AlertCircle,
   ChevronRight,
   Phone,
-  Lock
+  Lock,
+  Moon,
+  Sun
 } from 'lucide-react';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <ThemeProvider>
+      <AppLayout>{children}</AppLayout>
+    </ThemeProvider>
+  );
+}
+
+function AppLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -85,13 +100,15 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <title>UNSPOKEN MINDS SAFEspace - Mental Health Support</title>
         <meta name="description" content="Safe, anonymous mental health support platform" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className={`${inter.className} bg-white text-gray-900 antialiased`}>
+      <body className={`${inter.className} bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] antialiased dark:bg-[hsl(var(--bg-primary))] dark:text-[hsl(var(--text-primary))]`}>
+        <div className="dark:hidden">Light</div>
+        <div className="hidden dark:block">Dark</div>
         <header
           className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
             scrolled
@@ -112,7 +129,6 @@ export default function RootLayout({
                   <div className="leading-tight">
                     <h1 className="text-lg sm:text-xl xl:text-2xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-blue-900 bg-clip-text text-transparent leading-[1.05]">
                       <span className="block sm:inline">UNSPOKEN MINDS</span>{' '}
-                      <span className="block sm:inline">SAFEspace</span>
                     </h1>
                     <p className="text-xs text-gray-500 font-medium">Mental Health Support Platform</p>
                   </div>

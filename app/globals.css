@@ -1,28 +1,101 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@layer base {
+  :root {
+    /* Light Mode */
+    --bg-primary: 0 0% 100%;
+    --bg-secondary: 0 0% 98%;
+    --bg-tertiary: 0 0% 95%;
+    --bg-card: 0 0% 100%;
+    --text-primary: 220 70% 10%;
+    --text-secondary: 220 60% 40%;
+    --text-muted: 220 50% 60%;
+    --border-primary: 220 50% 90%;
+    --border-secondary: 220 50% 85%;
+    --accent: 220 80% 60%;
+    --accent-muted: 220 60% 80%;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+  }
+
+  [data-theme='dark'],
+  .dark {
+    /* Dark Mode */
+    --bg-primary: 240 10% 3.9%;
+    --bg-secondary: 240 10% 8%;
+    --bg-tertiary: 240 10% 12%;
+    --bg-card: 240 10% 8%;
+    --text-primary: 0 0% 98%;
+    --text-secondary: 0 0% 80%;
+    --text-muted: 0 0% 60%;
+    --border-primary: 240 10% 20%;
+    --border-secondary: 240 10% 25%;
+    --accent: 220 80% 60%;
+    --accent-muted: 220 60% 80%;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 rounded-lg font-semibold transition-all duration-200 bg-[hsl(var(--accent))] text-[hsl(var(--bg-primary))] hover:brightness-105 shadow-md hover:shadow-lg active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-muted))] focus-visible:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-lg font-semibold transition-all duration-200 border border-[hsl(var(--border-primary))] hover:border-[hsl(var(--accent))] text-[hsl(var(--text-primary))] bg-transparent hover:bg-[hsl(var(--bg-card))] shadow-sm hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-muted))] focus-visible:ring-offset-2;
+  }
+
+  .card {
+    @apply bg-[hsl(var(--bg-card))] border border-[hsl(var(--border-secondary))] rounded-[var(--radius-lg)] p-8 shadow-lg hover:shadow-xl transition-all duration-300;
+  }
+
+  .glass {
+    @apply bg-white/80 dark:bg-black/50 backdrop-blur-xl border border-white/20 dark:border-black/20 rounded-[var(--radius-lg)] shadow-2xl;
+  }
 }
 
 @layer utilities {
-  :root {
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --font-sans: var(--font-geist-sans);
-    --font-mono: var(--font-geist-mono);
+  .text-balance {
+    text-wrap: balance;
   }
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Custom Animations */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes pulse-gentle {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.02); }
+  }
+
+  .animate-pulse-gentle {
+    animation: pulse-gentle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-[hsl(var(--bg-tertiary))];
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-[hsl(var(--border-primary))] hover:bg-[hsl(var(--accent-muted))];
+  }
+
+  /* Focus Visible Styles */
+  * {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent))] focus-visible:ring-offset-2 focus-visible:ring-offset-current;
+  }
 }
