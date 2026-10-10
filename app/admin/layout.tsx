@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   FileText, 
@@ -21,20 +21,31 @@ export default function AdminLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   // Check authentication on mount
   useEffect(() => {
-    const authStatus = localStorage.getItem('admin_logged_in');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    }
-    setLoading(false);
-  }, []);
+    let cancelled = false;
+    fetch('/api/admin/session')
+      .then(response => response.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data.authenticated) setIsAuthenticated(true);
+        else if (pathname !== '/admin' && pathname !== '/admin/reset') router.replace('/admin');
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (pathname !== '/admin' && pathname !== '/admin/reset') router.replace('/admin');
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [pathname, router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('admin_logged_in');
+    void fetch('/api/admin/logout', { method: 'POST' });
     setIsAuthenticated(false);
-    router.push('/admin');
+    router.replace('/admin');
   };
 
   if (loading) {
@@ -50,7 +61,7 @@ export default function AdminLayout({
 
   // If not authenticated, show login page
   if (!isAuthenticated) {
-    return children; // This will be the login page
+    return pathname === '/admin' || pathname === '/admin/reset' ? children : null;
   }
 
   // If authenticated, show admin layout

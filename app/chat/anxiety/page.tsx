@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from '../../providers';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { ensureSessionAnonymousName } from '@/utils/sessionAnon';
@@ -14,9 +15,16 @@ import {
   X, 
   MoreVertical,
   Reply,
-  Clock,
   CornerDownRight,
-  AlertCircle
+  AlertCircle,
+  Heart,
+  ShieldCheck,
+  Sparkles,
+  Brain,
+  Waves,
+  Bell,
+  CheckCircle2,
+  LogOut
 } from 'lucide-react';
 
 interface Message {
@@ -213,10 +221,31 @@ const themes = {
 const roomInfo = {
   anxiety: {
     name: 'Anxiety Support Room',
-    description: 'Discuss anxiety, panic attacks, and coping strategies',
+    description: 'A calm space to unpack stress, find grounding, and feel supported without judgment.',
     rules: ['Be kind and supportive', 'No medical advice', 'Respect privacy']
   }
 };
+
+const supportPrompts = [
+  'What feels heavy right now?',
+  'What helps you feel a little safer today?',
+  'What would a calmer next step look like?',
+  'What part of your day feels most tiring?'
+];
+
+const groundingSteps = [
+  { label: 'Breathe', detail: 'In for 4, out for 6.', icon: Waves },
+  { label: 'Notice', detail: 'Name 5 things you can see.', icon: Sparkles },
+  { label: 'Reset', detail: 'Place one hand on your chest.', icon: Heart },
+  { label: 'Reflect', detail: 'Choose one supportive thought.', icon: Brain }
+];
+
+const quickSupportMessages = [
+  'You are not alone in this moment.',
+  'It is okay to pause and breathe.',
+  'Small steps are still progress.',
+  'You deserve gentleness right now.'
+];
 
 // User utility functions (moved from utils/userUtils.ts for simplicity)
 const getUserFromLocalStorage = () => {
@@ -258,7 +287,15 @@ const getUserFromLocalStorage = () => {
   }
 };
 
-const saveUserToLocalStorage = (user: any) => {
+type AnonymousUser = {
+  id: string;
+  name: string;
+  avatar: string | null;
+  color: string;
+  created: string;
+};
+
+const saveUserToLocalStorage = (user: AnonymousUser) => {
   try {
     localStorage.setItem('anonymousUser', JSON.stringify(user));
   } catch (error) {
@@ -266,11 +303,11 @@ const saveUserToLocalStorage = (user: any) => {
   }
 };
 
-const createNewAnonymousUser = () => {
-  const userId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const userName = `Anonymous_${Math.random().toString(36).substr(2, 6)}`;
+const createNewAnonymousUser = (): AnonymousUser => {
+  const userId = `anon_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  const userName = `Anonymous_${Math.random().toString(36).slice(2, 8)}`;
   
-  const newUser = {
+  const newUser: AnonymousUser = {
     id: userId,
     name: userName,
     avatar: null,
@@ -282,10 +319,10 @@ const createNewAnonymousUser = () => {
   return newUser;
 };
 
-const migrateStringUser = (userString: string) => {
-  const migratedUser = {
-    id: `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name: userString.substring(0, 30), // Limit name length
+const migrateStringUser = (userString: string): AnonymousUser => {
+  const migratedUser: AnonymousUser = {
+    id: `anon_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+    name: userString.substring(0, 30),
     avatar: null,
     color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
     created: new Date().toISOString()
@@ -295,16 +332,15 @@ const migrateStringUser = (userString: string) => {
   return migratedUser;
 };
 
-const fixUserObject = (userObj: any) => {
-  const fixedUser = {
-    id: userObj.id || `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name: userObj.name || userObj.user_name || `Anonymous_${Math.random().toString(36).substr(2, 6)}`,
+const fixUserObject = (userObj: Partial<AnonymousUser> & { user_name?: string }): AnonymousUser => {
+  const fixedUser: AnonymousUser = {
+    id: userObj.id || `anon_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+    name: userObj.name || userObj.user_name || `Anonymous_${Math.random().toString(36).slice(2, 8)}`,
     avatar: userObj.avatar || null,
     color: userObj.color || `#${Math.floor(Math.random()*16777215).toString(16)}`,
     created: userObj.created || new Date().toISOString()
   };
   
-  // Only save if we had to fix something
   if (!userObj.id || !userObj.name) {
     saveUserToLocalStorage(fixedUser);
   }
@@ -322,9 +358,10 @@ const getUserForChat = () => {
 
 export default function AnxietyChatPage() {
   const router = useRouter();
+  const { isDark: isDarkMode } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<AnonymousUser | null>(null);
   const [sessionAnonymousName, setSessionAnonymousName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
@@ -334,12 +371,6 @@ export default function AnxietyChatPage() {
       return (localStorage.getItem('appTheme') as keyof typeof themes) || 'calm';
     }
     return 'calm';
-  });
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('appDarkMode') === 'true';
-    }
-    return false;
   });
   
   // CRUD States
@@ -351,42 +382,60 @@ export default function AnxietyChatPage() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
-    try {
-      setIsAdmin(localStorage.getItem('isAdmin') === 'true');
-    } catch (e) {
+    fetch('/api/admin/session')
+      .then(response => response.json())
+      .then(data => setIsAdmin(data.authenticated === true))
+      .catch(() => {
       setIsAdmin(false);
-    }
+      });
   }, []);
   
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const shouldStickToBottomRef = useRef(true);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const pendingMessageScrollRef = useRef<string | null>(null);
+  const initialMessagesLoadedRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
   const addedMessageIdsRef = useRef<Set<string>>(new Set());
   
   const roomData = roomInfo[roomId];
   const currentThemeConfig = themes[currentTheme][isDarkMode ? 'dark' : 'light'];
 
-  const updateStickiness = () => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
-    shouldStickToBottomRef.current = distanceFromBottom < 120;
+  const exitAdminMode = async () => {
+    try {
+      const response = await fetch('/api/admin/logout', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error(`Admin sign-out failed with status ${response.status}`);
+      }
+      setIsAdmin(false);
+      setShowActionsId(null);
+    } catch (error) {
+      console.error('Error ending admin session from anxiety room:', error);
+      alert('Could not exit admin mode. Please try again.');
+    }
   };
 
-  // Smart auto-scroll: only follow new messages when user is already near bottom.
   useEffect(() => {
-    if (shouldStickToBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    if (initialMessagesLoadedRef.current) {
+      initialMessagesLoadedRef.current = false;
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    const pendingMessageId = pendingMessageScrollRef.current;
+    if (pendingMessageId && messages.some(message => message.id === pendingMessageId)) {
+      pendingMessageScrollRef.current = null;
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }
   }, [messages]);
 
   // Handle click outside to close action menus
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(event.target as Node)) {
+      const target = event.target;
+      if (target instanceof Element && !target.closest('[data-message-actions]')) {
         setShowActionsId(null);
       }
     };
@@ -394,13 +443,13 @@ export default function AnxietyChatPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load theme from localStorage
+  // Keep the room-specific color palette while honoring the site-wide color mode.
   useEffect(() => {
     const savedTheme = localStorage.getItem('appTheme') as keyof typeof themes || 'calm';
-    const savedDarkMode = localStorage.getItem('appDarkMode') === 'true';
     setCurrentTheme(savedTheme);
-    setIsDarkMode(savedDarkMode);
   }, []);
+
+  const supportedMessage = quickSupportMessages[Math.floor((messages.length + Date.now()) % quickSupportMessages.length)];
 
   // Handle redirect
   useEffect(() => {
@@ -409,6 +458,15 @@ export default function AnxietyChatPage() {
       router.push('/login');
     }
   }, [isLoading, router]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('appTheme') !== null) {
+      const storedTheme = localStorage.getItem('appTheme') as keyof typeof themes;
+      if (storedTheme && themes[storedTheme]) {
+        setCurrentTheme(storedTheme);
+      }
+    }
+  }, []);
 
   // Setup real-time subscription
   const setupRealtime = async (userId: string, sessionName: string) => {
@@ -536,6 +594,7 @@ export default function AnxietyChatPage() {
         
         if (data) {
           console.log('Loaded', data.length, 'messages');
+          initialMessagesLoadedRef.current = true;
           setMessages(data);
         }
 
@@ -568,6 +627,7 @@ export default function AnxietyChatPage() {
       const user = getUserForChat();
       const currentSessionName = sessionAnonymousName || ensureSessionAnonymousName();
       const messageText = newMessage.trim();
+      const replyTarget = replyingTo;
       
       // Create temporary message for optimistic update
       const tempId = `temp_${Date.now()}`;
@@ -583,8 +643,8 @@ export default function AnxietyChatPage() {
       };
 
       // If replying, add parent message ID
-      if (replyingTo) {
-        tempMessage.parent_message_id = replyingTo.parentId;
+      if (replyTarget) {
+        tempMessage.parent_message_id = replyTarget.parentId;
       }
 
       // Optimistic update
@@ -593,7 +653,15 @@ export default function AnxietyChatPage() {
       setReplyingTo(null);
       
       // Send to Supabase
-      const messageData: any = {
+      const messageData: {
+        room_id: string;
+        user_id: string;
+        user_name: string;
+        message: string;
+        is_edited: boolean;
+        is_deleted: boolean;
+        parent_message_id?: string;
+      } = {
         room_id: roomId,
         user_id: user.id,
         user_name: currentSessionName,
@@ -602,8 +670,8 @@ export default function AnxietyChatPage() {
         is_deleted: false
       };
 
-      if (replyingTo) {
-        messageData.parent_message_id = replyingTo.parentId;
+      if (replyTarget) {
+        messageData.parent_message_id = replyTarget.parentId;
       }
 
       const { data, error } = await supabase
@@ -614,6 +682,8 @@ export default function AnxietyChatPage() {
       if (error) {
         console.error('Supabase insert error:', error);
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
+        setReplyingTo(replyTarget);
+        setNewMessage(messageText);
         alert(`Failed to send: ${error.message}`);
         return;
       }
@@ -621,11 +691,15 @@ export default function AnxietyChatPage() {
       // Replace temp message with real one
       if (data && data[0]) {
         addedMessageIdsRef.current.add(data[0].id);
+        pendingMessageScrollRef.current = data[0].id;
         setMessages(prev => 
           prev.map(msg => 
             msg.id === tempId ? data[0] : msg
           )
         );
+      } else {
+        pendingMessageScrollRef.current = tempId;
+        setMessages(prev => [...prev]);
       }
       
       // Focus back on input
@@ -639,7 +713,7 @@ export default function AnxietyChatPage() {
 
   // UPDATE: Start editing a message
   const startEdit = (message: Message) => {
-    if (message.user_id !== currentUser?.id || message.is_deleted) return;
+    if (!isOwnMessage(message.user_id, message.user_name) || message.is_deleted) return;
     setEditingId(message.id);
     setEditText(message.message);
     setShowActionsId(null);
@@ -651,7 +725,7 @@ export default function AnxietyChatPage() {
     if (!editingId || !editText.trim() || !currentUser) return;
     
     try {
-      const payload: any = {
+      const payload: Record<string, string | boolean> = {
         message: editText.trim(),
         is_edited: true,
         edited_at: new Date().toISOString()
@@ -745,10 +819,29 @@ export default function AnxietyChatPage() {
 
   // DELETE: Execute delete
   const deleteMessage = async () => {
-    if (!confirmDeleteId || !currentUser) return;
+    if (!confirmDeleteId || (!currentUser && !isAdmin)) return;
     
     try {
-      const payload: any = {
+      if (isAdmin) {
+        const response = await fetch(
+          `/api/admin/chat/anxiety/messages/${encodeURIComponent(confirmDeleteId)}`,
+          { method: 'DELETE' }
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          alert(result.error || 'Failed to delete message.');
+          return;
+        }
+        setMessages(prev => prev.map(message => message.id === confirmDeleteId
+          ? { ...message, ...result.message }
+          : message
+        ));
+        setConfirmDeleteId(null);
+        return;
+      }
+
+      if (!currentUser) return;
+      const payload: Record<string, string | boolean> = {
         is_deleted: true,
         deleted_at: new Date().toISOString(),
         message: '[Message deleted]'
@@ -872,12 +965,11 @@ export default function AnxietyChatPage() {
     const activeSessionName = normalize(sessionAnonymousName);
     const incomingName = normalize(messageUserName);
 
-    // Primary source of truth for UI ownership: current session anonymous name.
-    if (activeSessionName && incomingName) {
-      return incomingName === activeSessionName;
+    const currentUserId = currentUser?.id?.toString();
+    if (currentUserId && messageUserId) {
+      return messageUserId.toString() === currentUserId;
     }
 
-    // Fallback when stored message IDs are inconsistent.
     const localStoredName = (() => {
       try {
         const raw = localStorage.getItem('anonymousUser');
@@ -899,8 +991,8 @@ export default function AnxietyChatPage() {
       return true;
     }
 
-    const currentUserId = currentUser?.id?.toString();
-    return !!(currentUserId && messageUserId && messageUserId.toString() === currentUserId);
+    return !!(incomingName && activeNames.has(incomingName)) ||
+      (!!activeSessionName && incomingName === activeSessionName);
   };
 
   // Get parent message for replies
@@ -927,27 +1019,95 @@ export default function AnxietyChatPage() {
 
   return (
     <div className={`flex min-h-screen items-center justify-center ${currentThemeConfig.bg} font-sans`}>
-      <main className={`flex min-h-screen w-full max-w-5xl flex-col py-8 px-4 ${currentThemeConfig.bg}`}>
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className={`text-3xl font-bold ${currentThemeConfig.text}`}>{roomData.name}</h1>
-          <p className={`${currentThemeConfig.subtext} text-sm mt-1`}>{roomData.description}</p>
-          <div className="flex items-center gap-3 mt-3">
-            <p className={`${currentThemeConfig.subtext} text-sm`}>
-              Status: {connectionStatus === 'connected' ? 'Live' : 'Disconnected'}
-            </p>
+      <main className={`flex min-h-[100dvh] w-full max-w-6xl flex-col py-4 px-3 sm:py-8 sm:px-6 ${currentThemeConfig.bg}`}>
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-slate-700 backdrop-blur-sm">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Safe space
+              </div>
+              <h1 className={`text-2xl font-bold sm:text-3xl ${currentThemeConfig.text}`}>{roomData.name}</h1>
+              <p className={`${currentThemeConfig.subtext} mt-1 max-w-2xl text-sm md:text-base`}>{roomData.description}</p>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-full border border-white/30 bg-white/15 px-3 py-2 backdrop-blur-sm">
+              <div className={`h-2.5 w-2.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <p className={`${currentThemeConfig.subtext} text-sm`}>
+                {connectionStatus === 'connected' ? 'Live support room' : 'Connecting...'}
+              </p>
+            </div>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={exitAdminMode}
+                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-medium ${isDarkMode ? 'border-amber-700 bg-amber-950/50 text-amber-200 hover:bg-amber-900' : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'}`}
+              >
+                <LogOut className="h-4 w-4" />
+                Exit admin mode
+              </button>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1.3fr_0.7fr]">
+            <div className={`rounded-2xl border p-4 ${currentThemeConfig.card}`}>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                <Bell className="h-4 w-4" />
+                Gentle check-in
+              </div>
+              <p className={`mt-2 text-sm ${currentThemeConfig.subtext}`}>
+                {supportedMessage}
+              </p>
+            </div>
+
+            <div className={`rounded-2xl border p-4 ${currentThemeConfig.card}`}>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                <CheckCircle2 className="h-4 w-4" />
+                Community support
+              </div>
+              <p className={`mt-2 text-sm ${currentThemeConfig.subtext}`}>
+                {onlineCount} people are here with you right now.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Chat Messages Container */}
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:mb-5 sm:gap-3 md:grid-cols-4">
+          {groundingSteps.map(({ label, detail, icon: Icon }) => (
+            <div key={label} className={`rounded-2xl border p-3 ${currentThemeConfig.card}`}>
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-white/60 text-slate-700">
+                <Icon className="h-4 w-4" />
+              </div>
+              <p className={`text-sm font-semibold ${currentThemeConfig.text}`}>{label}</p>
+              <p className={`mt-1 text-xs ${currentThemeConfig.subtext}`}>{detail}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className={`mb-4 rounded-2xl border p-3 ${currentThemeConfig.card}`}>
+          <div className="flex flex-wrap gap-2">
+            {supportPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => setNewMessage(prompt)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition hover:scale-[1.02] ${isDarkMode ? 'border-slate-600 bg-slate-800/70 text-slate-200' : 'border-slate-200 bg-white/80 text-slate-700'}`}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div
           ref={messagesContainerRef}
-          onScroll={updateStickiness}
-          className={`flex-1 border-2 rounded-lg p-4 mb-4 h-96 overflow-y-auto ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-300'}`}
+          className={`mb-3 h-[42dvh] min-h-64 max-h-[42rem] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border-2 p-3 shadow-inner sm:mb-4 sm:h-[26rem] sm:p-4 ${isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-white/80 border-gray-300'}`}
         >
           {messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <p className={currentThemeConfig.subtext}>Start the conversation! Be the first to share.</p>
+            <div className="flex h-full items-center justify-center text-center">
+              <div>
+                <Sparkles className={`mx-auto mb-3 h-10 w-10 ${currentThemeConfig.primary}`} />
+                <p className={currentThemeConfig.subtext}>Start the conversation and let the room hold space for you.</p>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -958,7 +1118,7 @@ export default function AnxietyChatPage() {
                 return (
                   <div 
                     key={msg.id} 
-                    className={`relative group ${isOwn ? "pr-12" : "pl-12"}`}
+                    className={`relative group ${isOwn ? "pr-11 sm:pr-12" : "pl-11 sm:pl-12"}`}
                   >
                     {/* Reply indicator */}
                     {parentMsg && !parentMsg.is_deleted && (
@@ -971,7 +1131,7 @@ export default function AnxietyChatPage() {
                     )}
                     
                     {/* Message bubble */}
-                    <div className={`max-w-xs px-4 py-3 rounded-2xl ${
+                    <div className={`max-w-[88%] break-words px-3 py-3 rounded-2xl shadow-sm sm:max-w-md sm:px-4 ${
                       msg.is_deleted 
                         ? `${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} ${currentThemeConfig.subtext} italic`
                         : isOwn 
@@ -1031,46 +1191,61 @@ export default function AnxietyChatPage() {
                     
                     {/* Action buttons (only for non-deleted messages) */}
                     {!msg.is_deleted && !editingId && (
-                      <div 
-                        ref={actionsRef}
-                        className={`absolute top-0 ${isOwn ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                      <div
+                        data-message-actions
+                        className={`absolute top-0 ${isOwn ? 'left-0' : 'right-0'} opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100`}
                       >
                         <button
                           onClick={() => setShowActionsId(showActionsId === msg.id ? null : msg.id)}
-                          className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-slate-900'}`}
+                          aria-label={`Actions for ${msg.user_name}'s message`}
+                          aria-expanded={showActionsId === msg.id}
+                          className={`flex h-10 w-10 items-center justify-center rounded-full ${isDarkMode ? 'text-gray-300 hover:bg-slate-700 hover:text-white' : 'text-gray-700 hover:bg-gray-200 hover:text-slate-950'}`}
                         >
                           <MoreVertical className="w-4 h-4" />
                         </button>
                         
                         {/* Action menu */}
                         {showActionsId === msg.id && (
-                          <div className={`absolute ${isOwn ? 'left-8' : 'right-8'} top-0 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-300'} border rounded-lg shadow-lg z-10 min-w-32`}>
+                          <div className={`absolute ${isOwn ? 'left-9' : 'right-9'} top-0 z-20 min-w-40 overflow-hidden rounded-xl border shadow-xl ${isDarkMode ? 'border-slate-600 bg-slate-900 text-white' : 'border-gray-300 bg-white text-gray-900'}`}>
                             {/* Reply button (for all messages) */}
                             <button
                               onClick={() => startReply(msg)}
-                              className={`w-full text-left px-4 py-2 text-sm hover:${isDarkMode ? 'bg-slate-700' : 'bg-gray-100'} flex items-center gap-2`}
+                              className={`flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium ${isDarkMode ? 'text-gray-100 hover:bg-slate-700' : 'text-gray-900 hover:bg-gray-100'}`}
                             >
                               <Reply className="w-3 h-3" />
                               Reply
                             </button>
                             
                             {/* Edit & Delete buttons (only for own messages) */}
-                            {isOwn && (
+                            {(isOwn || isAdmin) && (
                               <>
-                                <button
-                                  onClick={() => startEdit(msg)}
-                                  className={`w-full text-left px-4 py-2 text-sm hover:${isDarkMode ? 'bg-slate-700' : 'bg-gray-100'} flex items-center gap-2`}
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => confirmDelete(msg.id)}
-                                  className={`w-full text-left px-4 py-2 text-sm ${isDarkMode ? 'text-red-400 hover:bg-slate-700 hover:text-red-300' : 'text-red-600 hover:bg-gray-100 hover:text-red-700'} flex items-center gap-2`}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  Delete
-                                </button>
+                                {isOwn && (
+                                  <>
+                                    <button
+                                      onClick={() => startEdit(msg)}
+                                      className={`flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium ${isDarkMode ? 'text-gray-100 hover:bg-slate-700' : 'text-gray-900 hover:bg-gray-100'}`}
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => confirmDelete(msg.id)}
+                                      className={`flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium ${isDarkMode ? 'text-red-300 hover:bg-slate-700 hover:text-red-200' : 'text-red-700 hover:bg-gray-100 hover:text-red-800'}`}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
+                                {isAdmin && !isOwn && (
+                                  <button
+                                    onClick={() => confirmDelete(msg.id)}
+                                    className={`flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium ${isDarkMode ? 'text-red-300 hover:bg-slate-700 hover:text-red-200' : 'text-red-700 hover:bg-gray-100 hover:text-red-800'}`}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    Delete as admin
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>
@@ -1080,14 +1255,13 @@ export default function AnxietyChatPage() {
                   </div>
                 );
               })}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
         
         {/* Reply Preview */}
         {replyingTo && (
-          <div className={`mb-3 p-3 rounded-lg border ${currentThemeConfig.replyBg} ${currentThemeConfig.border}`}>
+          <div className={`mb-3 rounded-2xl border p-3 ${currentThemeConfig.replyBg} ${currentThemeConfig.border}`}>
             <div className="flex items-center justify-between mb-1">
               <p className={`text-sm ${currentThemeConfig.primary}`}>
                 <Reply className="w-3 h-3 inline mr-1" />
@@ -1101,7 +1275,7 @@ export default function AnxietyChatPage() {
               </button>
             </div>
             <p className={`text-sm ${currentThemeConfig.text} truncate`}>
-              "{replyingTo.parentMessage}"
+                &ldquo;{replyingTo.parentMessage}&rdquo;
             </p>
           </div>
         )}
@@ -1116,7 +1290,9 @@ export default function AnxietyChatPage() {
               </p>
             </div>
             <p className={`${currentThemeConfig.subtext} mb-4`}>
-              Are you sure you want to delete this message? This action cannot be undone.
+              {isAdmin
+                ? 'This will hide the message from the anxiety room. This action cannot be undone from the chat.'
+                : 'Are you sure you want to delete this message? This action cannot be undone.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -1136,29 +1312,37 @@ export default function AnxietyChatPage() {
         )}
         
         {/* Message Input */}
-        <div className="flex gap-2">
-          <input 
-            ref={inputRef}
-            type="text" 
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder={`Type your message${replyingTo ? ` (replying to ${replyingTo.parentUserName})` : ''}...`}
-            className={`flex-1 border rounded-full px-4 py-3 ${isDarkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-gray-500' : 'bg-gray-100 border-gray-300 text-slate-900 placeholder-gray-600'}`}
-          />
-          <button 
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-            className={`${currentThemeConfig.button} text-white px-6 py-3 rounded-full hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
-          >
-            <Send className="w-5 h-5" />
-            Send
-          </button>
+        <div className={`rounded-2xl border p-3 ${currentThemeConfig.card}`}>
+          <div className="mb-2 flex items-center justify-between">
+            <p className={`text-xs font-medium uppercase tracking-[0.2em] ${currentThemeConfig.subtext}`}>
+              Share what you need
+            </p>
+            <p className={`text-xs ${currentThemeConfig.subtext}`}>
+              {replyingTo ? `Replying to ${replyingTo.parentUserName}` : 'You are safe to share at your own pace'}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              ref={inputRef}
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder={`Type your message${replyingTo ? ` (replying to ${replyingTo.parentUserName})` : ''}...`}
+              className={`min-w-0 flex-1 border rounded-2xl px-4 py-3 text-base shadow-inner ${isDarkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-slate-900 placeholder-gray-500'}`}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim()}
+              className={`${currentThemeConfig.button} min-h-12 w-full justify-center text-white px-6 py-3 rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg sm:w-auto sm:rounded-full`}
+            >
+              <Send className="w-5 h-5" />
+              Send
+            </button>
+          </div>
         </div>
         
       </main>
     </div>
   );
 }
-
-

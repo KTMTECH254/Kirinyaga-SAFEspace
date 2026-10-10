@@ -1,222 +1,277 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { Playfair_Display, Inter } from 'next/font/google';
-import { motion } from 'framer-motion';
-import { CloudMoon, Waves, Sparkles, Sun, Target, Eye, Heart, Users, Shield, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Caveat, Inter } from 'next/font/google';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useTheme } from './providers';
+import {
+  ArrowDown,
+  ArrowRight,
+  BookOpen,
+  Heart,
+  LifeBuoy,
+  MessageCircle,
+  ShieldCheck,
+  Users,
+  UserRound
+} from 'lucide-react';
 
-const playfair = Playfair_Display({ subsets: ['latin'], weight: ['400', '600'], display: 'swap' });
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600'], display: 'swap' });
+const caveat = Caveat({ subsets: ['latin'], weight: ['400', '600'], display: 'swap' });
+
+const principles = [
+  {
+    title: 'Anonymous Chatrooms',
+    description: 'Talk to others, share your thoughts, or just listen. No real names. No judgment.',
+    icon: MessageCircle,
+    color: 'from-[#7668ef] to-[#4433a3]'
+  },
+  {
+    title: 'Helpful Resources',
+    description: 'Access guides, articles, crisis support and more — all in one place.',
+    icon: BookOpen,
+    color: 'from-[#27b9dc] to-[#137194]'
+  },
+  {
+    title: 'Support Professionals',
+    description: 'Connect with trained professionals when you need extra help.',
+    icon: Users,
+    color: 'from-[#30c29b] to-[#177d68]'
+  },
+  {
+    title: 'Moderated & Safe',
+    description: 'We keep the space respectful and supportive for everyone.',
+    icon: ShieldCheck,
+    color: 'from-[#d5b64c] to-[#8d702d]'
+  }
+];
+
+const portals = [
+  {
+    title: 'Chatrooms',
+    caption: 'Talk. Listen. Connect.',
+    href: '/chat-rooms',
+    icon: MessageCircle,
+    image: '/images/reference-chat-door.png'
+  },
+  {
+    title: 'Resources',
+    caption: 'Learn. Understand. Heal.',
+    href: '/education',
+    icon: BookOpen,
+    image: '/images/reference-resource-door.png'
+  },
+  {
+    title: 'Crisis Support',
+    caption: 'Immediate help. Real people.',
+    href: '/emergency',
+    icon: LifeBuoy,
+    image: '/images/reference-crisis-door.png'
+  },
+  {
+    title: 'Professionals',
+    caption: 'Get expert support.',
+    href: '/professionals',
+    icon: UserRound,
+    image: '/images/reference-professional-door.png'
+  },
+  {
+    title: 'Community',
+    caption: 'You belong here.',
+    href: '/about',
+    icon: Heart,
+    image: '/images/reference-community-door.png'
+  }
+];
 
 export default function Home() {
-  const router = useRouter();
-
-  const moods = useMemo(
-    () => [
-      { icon: <CloudMoon size={18} />, label: 'Soft' },
-      { icon: <Waves size={18} />, label: 'Ocean' },
-      { icon: <Sparkles size={18} />, label: 'Bright' },
-      { icon: <Sun size={18} />, label: 'Warm' }
-    ],
-    []
-  );
+  const prefersReducedMotion = useReducedMotion();
+  const { isDark } = useTheme();
 
   return (
-    <div className="min-h-screen bg-[#0c1424] text-white">
-      <main className="relative min-h-screen overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1600&q=80')"
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1f2a44]/58 via-[#7a4a2d]/45 to-[#0b1323]/82" />
-        <div className="absolute inset-0 opacity-30" style={{
-          backgroundImage:
-            'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.12) 0, rgba(255,255,255,0) 35%), radial-gradient(circle at 80% 10%, rgba(255,255,255,0.08) 0, rgba(255,255,255,0) 40%), radial-gradient(circle at 40% 80%, rgba(255,255,255,0.1) 0, rgba(255,255,255,0) 35%)'
-        }} />
+    <main data-home-theme={isDark ? 'dark' : 'light'} className={`overflow-hidden bg-[#050b16] text-white ${inter.className}`}>
+      <section className="home-hero relative isolate min-h-[570px] overflow-hidden bg-[#050b16] sm:min-h-[620px] lg:min-h-[640px]">
+        <div className="absolute inset-y-0 right-0 -z-20 w-full lg:w-[70%]">
+          <Image
+            src="/images/reference-hero.png"
+            alt="An illustrated room opening onto a glowing sunset landscape"
+            fill
+            priority
+            loading="eager"
+            sizes="(max-width: 1024px) 100vw, 70vw"
+            className={`object-cover object-[54%_center] ${isDark ? 'brightness-125' : 'brightness-150'}`}
+          />
+        </div>
+        <div aria-hidden="true" className="home-hero-overlay absolute inset-0 -z-10 bg-[linear-gradient(90deg,#050b16_0%,rgba(5,11,22,.98)_27%,rgba(5,11,22,.82)_43%,rgba(5,11,22,.12)_100%)]" />
+        <div aria-hidden="true" className="home-hero-bottomshade absolute inset-0 -z-10 bg-[linear-gradient(0deg,#050b16_0%,transparent_26%,rgba(5,11,22,.12)_100%)]" />
 
-        <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-6 pt-20 pb-16">
-          <div className={`text-lg tracking-[0.4em] ${playfair.className}`}>
-            SAFESPACE
-          </div>
-
-          <section className="flex flex-1 flex-col justify-center">
-            <div className="max-w-3xl">
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-                className={`text-4xl sm:text-5xl md:text-6xl font-semibold ${playfair.className}`}
+        <div className="mx-auto flex min-h-[570px] max-w-7xl flex-col justify-center px-5 pb-10 pt-12 sm:min-h-[620px] sm:px-8 lg:min-h-[640px] lg:px-12">
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55 }}
+            className="max-w-[35rem]"
+          >
+            <h1 className={`home-hero-title text-[2.3rem] font-normal leading-[0.95] tracking-wide text-white sm:text-5xl lg:text-6xl ${caveat.className}`}>
+              You&apos;re not <span className="home-hero-accent text-[#53dfd1]">alone...</span>
+              <br />
+              even when it feels like it.
+            </h1>
+            <p className="home-hero-copy mt-5 max-w-sm text-sm leading-6 text-[#e2e7f0] sm:text-base sm:leading-7">
+              Unspoken Minds SafeSpace is a free, anonymous mental health support space for young people. Talk. Heal. Grow.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 min-[420px]:flex-row">
+              <Link
+                href="/chat-rooms"
+                className="home-primary-action group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#32dfb8] to-[#3989ee] px-7 text-sm font-semibold text-white shadow-[0_8px_30px_rgba(45,207,197,.18)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#050b16]"
               >
-                You&apos;re Not Alone
-              </motion.h1>
-              <motion.h2
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.15 }}
-                className={`mt-3 text-3xl sm:text-4xl md:text-5xl font-light italic text-white/70 ${playfair.className}`}
+                Enter SafeSpace
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+              <Link
+                href="#why-safespace"
+                className="home-secondary-action inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#4da9ee] bg-[#050b16]/55 px-7 text-sm font-medium text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                in Your Mental Health Journey
-              </motion.h2>
-              <motion.p
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className={`mt-6 max-w-xl text-sm sm:text-base text-white/70 ${inter.className}`}
-              >
-                A safe, anonymous space where real people support each other through anxiety, stress, depression,
-                and recovery. No judgments, just understanding.
-              </motion.p>
-
-              <div className="mt-10 flex items-center gap-4">
-                {moods.map((mood, index) => (
-                  <motion.button
-                    key={mood.label}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.4 + index * 0.08 }}
-                    className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/80 backdrop-blur-md transition-all hover:scale-105 hover:border-white/40 hover:text-white"
-                    aria-label={mood.label}
-                  >
-                    {mood.icon}
-                  </motion.button>
+                Learn More
+                <ArrowDown className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="home-community-note mt-6 flex items-center gap-3 text-[11px] leading-4 text-[#e1e7f1]">
+              <div className="flex -space-x-2" aria-hidden="true">
+                {['bg-[#d8ad94]', 'bg-[#87c7bc]', 'bg-[#ae9bce]', 'bg-[#d6b67e]'].map((color, index) => (
+                  <span key={color} className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#152035] ${color}`}>
+                    <UserRound className="h-4 w-4 text-[#192238]" />
+                    <span className="sr-only">Community member {index + 1}</span>
+                  </span>
                 ))}
               </div>
-
-              <div className="mt-12 flex flex-wrap gap-4">
-                <button
-                  onClick={() => router.push('/chat-rooms')}
-                  className="rounded-full bg-white/90 px-6 py-3 text-sm font-semibold text-[#0b1323] transition-all hover:bg-white"
-                >
-                  Start Chatting Now
-                </button>
-                <button
-                  onClick={() => router.push('/education')}
-                  className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white/80 transition-all hover:border-white/60 hover:text-white"
-                >
-                  Explore Support Rooms
-                </button>
-                <button
-                  onClick={() => router.push('/professionals')}
-                  className="rounded-full border border-emerald-200/50 bg-emerald-100/10 px-6 py-3 text-sm font-semibold text-emerald-100 transition-all hover:border-emerald-100 hover:bg-emerald-100/20"
-                >
-                  Meet Licensed Professionals
-                </button>
-              </div>
+              <span>Real people. Real stories. Real support.<br />Join our growing community.</span>
             </div>
-          </section>
-
-          {/* About Section */}
-          <section id="about" className="py-20 mt-20">
-            <div className="max-w-4xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6 }}
-              >
-                <h2 className={`text-3xl sm:text-4xl font-semibold text-center ${playfair.className} mb-4`}>
-                  About UNSPOKEN MINDS SAFEspace
-                </h2>
-                <p className={`text-center text-white/60 ${inter.className} mb-12 max-w-2xl mx-auto`}>
-                  A compassionate initiative dedicated to providing accessible mental health support 
-                  for students and young adults in our community.
-                </p>
-              </motion.div>
-
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Mission */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-blue-500/20 rounded-xl">
-                      <Target className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h3 className={`text-xl font-semibold ${playfair.className}`}>Our Mission</h3>
-                  </div>
-                  <p className="text-white/70 leading-relaxed">
-                    To create a safe, anonymous, and accessible platform where individuals can 
-                    access mental health support, connect with others who understand their journey, 
-                    and find the resources they need to thrive — completely free from stigma and judgment.
-                  </p>
-                </motion.div>
-
-                {/* Vision */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-emerald-500/20 rounded-xl">
-                      <Eye className="w-6 h-6 text-emerald-400" />
-                    </div>
-                    <h3 className={`text-xl font-semibold ${playfair.className}`}>Our Vision</h3>
-                  </div>
-                  <p className="text-white/70 leading-relaxed">
-                    To become the leading mental health support network in Kenya and across East Africa, 
-                    fostering a community where every person feels empowered to prioritize their mental 
-                    wellbeing and has access to the care they deserve.
-                  </p>
-                </motion.div>
-              </div>
-
-              {/* Values */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="mt-12"
-              >
-                <h3 className={`text-2xl font-semibold text-center mb-8 ${playfair.className}`}>
-                  Our Core Values
-                </h3>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="text-center p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 bg-purple-500/20 rounded-full flex items-center justify-center">
-                      <Heart className="w-6 h-6 text-purple-400" />
-                    </div>
-                    <h4 className="font-semibold mb-2">Compassion</h4>
-                    <p className="text-sm text-white/60">Every interaction is rooted in empathy and understanding</p>
-                  </div>
-                  <div className="text-center p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 bg-blue-500/20 rounded-full flex items-center justify-center">
-                      <Shield className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h4 className="font-semibold mb-2">Privacy</h4>
-                    <p className="text-sm text-white/60">Your anonymity and security are our top priority</p>
-                  </div>
-                  <div className="text-center p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 bg-emerald-500/20 rounded-full flex items-center justify-center">
-                      <Users className="w-6 h-6 text-emerald-400" />
-                    </div>
-                    <h4 className="font-semibold mb-2">Community</h4>
-                    <p className="text-sm text-white/60">We believe healing happens together, not alone</p>
-                  </div>
-                  <div className="text-center p-6">
-                    <div className="w-12 h-12 mx-auto mb-4 bg-amber-500/20 rounded-full flex items-center justify-center">
-                      <CheckCircle className="w-6 h-6 text-amber-400" />
-                    </div>
-                    <h4 className="font-semibold mb-2">Accessibility</h4>
-                    <p className="text-sm text-white/60">Mental health support should be available to everyone</p>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </section>
+          </motion.div>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section id="why-safespace" className="home-features scroll-mt-20 border-y border-white/5 bg-[#070e1b] px-5 py-9 sm:px-8 sm:py-12 lg:px-12">
+        <div className="mx-auto grid max-w-7xl gap-7 lg:grid-cols-[1.05fr_3fr] lg:items-center lg:gap-10">
+          <div>
+            <h2 className="home-feature-heading text-xl font-semibold text-white sm:text-2xl">Why SafeSpace?</h2>
+            <span className="mt-2 block h-0.5 w-8 bg-[#3edbc1]" />
+            <p className="home-feature-intro mt-3 max-w-xs text-xs leading-[1.55] text-[#d0d7e3] sm:text-sm">
+              We understand that sometimes it&apos;s hard to talk. That&apos;s why we&apos;ve created a safe, judgment-free space where you can be yourself — without stigma, without being alone.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 sm:gap-5">
+            {principles.map(({ title, description, icon: Icon, color }, index) => (
+              <motion.div
+                key={title}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.25 }}
+                transition={{ duration: 0.4, delay: index * 0.06 }}
+                className="text-center"
+              >
+                <div className={`mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${color} text-white shadow-lg`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="home-feature-title mt-2.5 text-[11px] font-semibold text-white sm:text-xs">{title}</h3>
+                <p className="home-feature-description mx-auto mt-1.5 max-w-[12rem] text-[10px] leading-4 text-[#b5c0d0] sm:text-[11px]">{description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="home-portals relative isolate overflow-hidden bg-[#06101c] px-4 py-10 sm:px-8 sm:py-12 lg:px-12">
+        <div className="absolute inset-0 -z-20">
+          <Image
+            src="/images/reference-hero.png"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover object-[center_72%] opacity-25"
+          />
+        </div>
+        <div aria-hidden="true" className="home-portals-overlay absolute inset-0 -z-10 bg-[#06101c]/75" />
+        <div className="mx-auto grid max-w-7xl gap-7 lg:grid-cols-[0.8fr_2.7fr] lg:items-center lg:gap-10">
+          <div className="max-w-sm">
+            <h2 className={`home-portals-heading text-3xl leading-tight text-white sm:text-4xl ${caveat.className}`}>
+              Where do you<br />want to start?
+            </h2>
+            <span className="mt-2 block h-0.5 w-10 -rotate-12 bg-[#43d8c3]" />
+            <p className="home-portals-copy mt-4 text-xs leading-5 text-[#d2dae7]">
+              Everyone&apos;s journey is different. Choose what feels right for you, or just explore.
+            </p>
+            <p className={`home-portals-aside mt-5 text-lg italic text-[#7fe2d5] ${caveat.className}`}>
+              It&apos;s okay to seek help.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+            {portals.map(({ title, caption, href, icon: Icon, image }, index) => (
+              <motion.div
+                key={title}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.4, delay: index * 0.06 }}
+                className="group"
+              >
+                <Link
+                  href={href}
+                  className="block rounded-xl text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#06101c]"
+                >
+                  <div className="relative h-36 overflow-hidden rounded-t-[3.5rem] border border-white/15 bg-[#10182a] sm:h-40 lg:h-44">
+                    <Image
+                      src={image}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 42vw, (max-width: 1024px) 28vw, 18vw"
+                      className="object-cover transition duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#030813]/80 via-transparent to-[#030813]/5" />
+                    <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/30 bg-[#07101e]/55 text-white backdrop-blur-sm">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </div>
+                  <h3 className="home-portal-title mt-2 text-xs font-semibold text-white">{title}</h3>
+                  <p className="home-portal-caption mt-1 text-[10px] leading-4 text-[#bac5d5]">{caption}</p>
+                  <span className="mx-auto mt-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/35 text-white/80 transition group-hover:border-cyan-300 group-hover:bg-cyan-300 group-hover:text-[#07101c]">
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="home-note relative overflow-hidden border-t border-white/10 bg-[#111b2b] px-5 py-8 sm:px-8 sm:py-10 lg:px-12">
+        <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(80,132,203,.2),transparent_68%)]" />
+        <div className="relative mx-auto grid max-w-7xl gap-5 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="flex items-center gap-5 sm:gap-8">
+            <h2 className={`home-note-heading shrink-0 text-3xl leading-none text-white sm:text-4xl ${caveat.className}`}>
+              Your mind<br />matters.
+            </h2>
+            <div className="h-14 w-px bg-white/25" />
+            <div>
+              <p className="home-note-title text-sm font-semibold text-white">A safe space today.<br />A brighter tomorrow.</p>
+              <p className="home-note-copy mt-2 max-w-md text-xs leading-5 text-[#bdc8d8]">
+                You don&apos;t have to go through it alone. Choose a way to pause, connect, or find support at your own pace.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/emergency"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#53d9c5]/60 px-5 text-sm font-semibold text-[#8de9db] transition hover:bg-[#53d9c5]/10"
+          >
+            Need urgent help?
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+    </main>
   );
 }

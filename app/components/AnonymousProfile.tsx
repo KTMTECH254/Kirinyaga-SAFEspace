@@ -38,6 +38,7 @@ export default function AnonymousProfile() {
   }, []);
 
   const handleLogout = () => {
+    void fetch('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('anonymousUser');
     sessionStorage.removeItem('anonymousSessionName');
     window.location.reload();

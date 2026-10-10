@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, User } from 'lucide-react';
+import Link from 'next/link';
+import { Shield, Lock, User, Eye, EyeOff } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,21 +19,12 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      // Simple admin credentials (you can expand this later)
-      const adminCredentials = {
-        username: 'admin',
-        password: 'admin123' // Default password
-      };
-
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      if (username === adminCredentials.username && password === adminCredentials.password) {
-        // Store authentication status
-        localStorage.setItem('admin_logged_in', 'true');
-        localStorage.setItem('admin_username', username);
-        
-        // Redirect to admin dashboard
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (response.ok) {
         router.push('/admin/reports');
       } else {
         setError('Invalid username or password');
@@ -55,7 +48,6 @@ export default function AdminLoginPage() {
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Portal</h1>
             <p className="text-gray-600">Sign in to access the admin dashboard</p>
-            <p className="text-sm text-gray-500 mt-2">Default: admin / admin123</p>
           </div>
 
           {/* Login Form */}
@@ -76,10 +68,12 @@ export default function AdminLoginPage() {
                 </div>
                 <input
                   type="text"
+                  autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-500 caret-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter username"
+                  style={{ color: '#111827', backgroundColor: '#ffffff', WebkitTextFillColor: '#111827' }}
                   required
                 />
               </div>
@@ -94,13 +88,24 @@ export default function AdminLoginPage() {
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full rounded-lg border border-gray-300 bg-white py-3 pl-10 pr-12 text-gray-900 placeholder-gray-500 caret-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter password"
+                  autoComplete="current-password"
+                  style={{ color: '#111827', backgroundColor: '#ffffff', WebkitTextFillColor: '#111827' }}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(value => !value)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-800"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 
@@ -122,6 +127,15 @@ export default function AdminLoginPage() {
               )}
             </button>
           </form>
+
+          <p className="mt-4 text-center text-sm">
+            <Link href="/admin/reset" className="font-medium text-blue-700 hover:text-blue-800">
+              Forgot your username or password?
+            </Link>
+          </p>
+          <p className="mt-1 text-center text-xs text-gray-500">
+            Reset both sign-in details using your private recovery token.
+          </p>
 
           {/* Security Note */}
           <div className="mt-8 pt-6 border-t border-gray-200">

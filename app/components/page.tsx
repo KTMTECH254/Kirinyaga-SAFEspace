@@ -74,6 +74,7 @@ export default function ProfilePage() {
   };
 
   const handleLogout = () => {
+    void fetch('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('anonymousUser');
     clearSessionAnonymousName();
     router.push('/login');

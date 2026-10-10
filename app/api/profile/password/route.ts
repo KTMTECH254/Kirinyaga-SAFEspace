@@ -1,16 +1,21 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { compare, hash } from 'bcryptjs';
+import { getAuthProfileId } from '@/lib/authSession';
 
 export async function POST(req: Request) {
   try {
+    const profileId = getAuthProfileId(req);
+    if (!profileId) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
     const body = await req.json();
-    const profileId = typeof body.profileId === 'string' ? body.profileId : '';
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
 
-    if (!profileId || !currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+    }
+    if (newPassword.length < 6) {
+      return NextResponse.json({ error: 'New password must be at least 6 characters.' }, { status: 400 });
     }
 
     const { data: profile, error } = await supabaseAdmin
@@ -20,7 +25,7 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: 'Unable to update password.' }, { status: 500 });
     }
 
     const passwordOk = await compare(currentPassword, profile?.password_hash || '');
@@ -35,7 +40,7 @@ export async function POST(req: Request) {
       .eq('id', profileId);
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 400 });
+      return NextResponse.json({ error: 'Unable to update password.' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

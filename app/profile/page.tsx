@@ -82,13 +82,6 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!profile) return;
     const trimmedName = formState.displayName.trim();
-    const profileId = profile.profileId || profile.id;
-
-    if (!profileId) {
-      setSaveMessage('Unable to update profile. Please sign in again.');
-      return;
-    }
-
     setIsSaving(true);
     setSaveMessage(null);
 
@@ -106,7 +99,6 @@ export default function ProfilePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          profileId,
           displayName: updated.displayName,
           preferences: updated.preferences
         })
@@ -153,18 +145,11 @@ export default function ProfilePage() {
       return;
     }
 
-    const profileId = profile.profileId || profile.id;
-    if (!profileId) {
-      setPasswordMessage('Unable to change password. Please sign in again.');
-      return;
-    }
-
     try {
       const res = await fetch('/api/profile/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          profileId,
           currentPassword: passwordState.currentPassword,
           newPassword: passwordState.newPassword
         })
@@ -354,8 +339,9 @@ export default function ProfilePage() {
         </div>
 
         <button
-          onClick={() => {
-            localStorage.removeItem('anonymousUser');
+            onClick={() => {
+              void fetch('/api/auth/logout', { method: 'POST' });
+              localStorage.removeItem('anonymousUser');
             clearSessionAnonymousName();
             router.push('/');
           }}

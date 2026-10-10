@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { compare, hash } from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { setAuthSession } from '@/lib/authSession';
 
-const safeProfileFields = 'id, user_id, anonymous_name, display_name, preferences, created_at';
+const safeProfileFields = 'id, anonymous_name, display_name, preferences, created_at';
 
 export async function POST(req: Request) {
   try {
@@ -26,8 +27,10 @@ export async function POST(req: Request) {
         .eq('anonymous_name', anonymousName)
         .maybeSingle();
 
-      if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 400 });
-      if (existing) return NextResponse.json({ error: 'Anonymous name is already taken.' }, { status: 409 });
+      if (lookupError) return NextResponse.json({ error: 'Unable to create account.' }, { status: 500 });
+      // Do not reveal whether a name is registered. The response is identical
+      // for an existing name and a successful creation.
+      if (existing) return NextResponse.json({ success: true });
 
       const passwordHash = await hash(password, 10);
       const { data: profile, error } = await supabaseAdmin
@@ -36,25 +39,27 @@ export async function POST(req: Request) {
         .select(safeProfileFields)
         .single();
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      return NextResponse.json({ profile });
+      if (error) return NextResponse.json({ error: 'Unable to create account.' }, { status: 500 });
+      return NextResponse.json({ success: true, profile });
     }
 
     if (action === 'sign-in') {
       const { data: profile, error } = await supabaseAdmin
         .from('user_profiles')
-        .select('id, user_id, anonymous_name, display_name, preferences, created_at, password_hash')
+        .select('id, anonymous_name, display_name, preferences, created_at, password_hash')
         .eq('anonymous_name', anonymousName)
         .maybeSingle();
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-      if (!profile) return NextResponse.json({ error: 'This anonymous name does not exist. Please sign up first.' }, { status: 404 });
+      if (error) return NextResponse.json({ error: 'Unable to sign in. Check your name and password.' }, { status: 401 });
+      if (!profile) return NextResponse.json({ error: 'Unable to sign in. Check your name and password.' }, { status: 401 });
 
       const passwordOk = await compare(password, profile.password_hash || '');
-      if (!passwordOk) return NextResponse.json({ error: 'Incorrect password. Please try again.' }, { status: 401 });
+      if (!passwordOk) return NextResponse.json({ error: 'Unable to sign in. Check your name and password.' }, { status: 401 });
 
       const { password_hash: _passwordHash, ...safeProfile } = profile;
-      return NextResponse.json({ profile: safeProfile });
+      const response = NextResponse.json({ profile: safeProfile });
+      setAuthSession(response, profile.id);
+      return response;
     }
 
     return NextResponse.json({ error: 'Unsupported action.' }, { status: 400 });

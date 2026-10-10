@@ -66,7 +66,7 @@ export default function LoginPage() {
 
       // Create new profile with password
       console.log('Creating profile with password...');
-      const { profile: newProfile, error: profileError } = await authFunctions.createUserWithPassword(
+      const { error: profileError } = await authFunctions.createUserWithPassword(
         anonymousName.trim(),
         password
       );
@@ -77,16 +77,12 @@ export default function LoginPage() {
         return;
       }
 
-      console.log('Profile created successfully:', newProfile);
-
-      console.log('Sign-up completed successfully! Switching to sign-in mode.');
-
       // Clear the form and switch to sign-in mode
       setAnonymousName('');
       setPassword('');
       setIsSignUp(false);
       setError('');
-      setSuccess('Account created successfully! Please sign in with your anonymous name.');
+      setSuccess('If the name was available, your account is ready. Please sign in to continue.');
       setIsLoading(false);
 
       // Clear success message after 5 seconds
@@ -133,6 +129,11 @@ export default function LoginPage() {
         return;
       }
 
+      const adminLogoutResponse = await fetch('/api/admin/logout', { method: 'POST' });
+      if (!adminLogoutResponse.ok) {
+        throw new Error('Could not end the previous admin session. Please try signing in again.');
+      }
+
       // Store user info in localStorage for the app to use
       const userInfo = {
         id: existingProfile.id,
@@ -150,8 +151,6 @@ export default function LoginPage() {
         userId: existingProfile.id,
         sessionAnonymousName
       }));
-
-      console.log('Signed in with existing anonymous profile:', userInfo);
 
       // Add school project analytics (optional)
       const projectStats = JSON.parse(localStorage.getItem('kirinyaga_stats') || '{"logins": 0}');

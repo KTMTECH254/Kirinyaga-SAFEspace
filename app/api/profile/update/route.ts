@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getAuthProfileId } from '@/lib/authSession';
 
 export async function POST(req: Request) {
   try {
+    const profileId = getAuthProfileId(req);
+    if (!profileId) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
     const body = await req.json();
-    const profileId = typeof body.profileId === 'string' ? body.profileId : '';
-
-    if (!profileId) {
-      return NextResponse.json({ error: 'Missing profile id.' }, { status: 400 });
-    }
 
     const payload: Record<string, unknown> = {};
     const requestedName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
@@ -22,11 +20,11 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (existingError) {
-        return NextResponse.json({ error: existingError.message }, { status: 400 });
+        return NextResponse.json({ error: 'Unable to update profile.' }, { status: 500 });
       }
 
       if (existing) {
-        return NextResponse.json({ error: 'This name is already taken.' }, { status: 409 });
+        return NextResponse.json({ error: 'Unable to update profile.' }, { status: 400 });
       }
 
       payload.display_name = requestedName;
@@ -48,7 +46,7 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: 'Unable to update profile.' }, { status: 500 });
     }
 
     return NextResponse.json({ profile: data });
