@@ -112,7 +112,7 @@ function AppLayout({
       </head>
       <body className={`${inter.className} bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] antialiased dark:bg-[hsl(var(--bg-primary))] dark:text-[hsl(var(--text-primary))]`}>
         <header
-          className={`${pathname === '/chat/anxiety' ? 'hidden' : 'fixed top-0 left-0 right-0 z-40 transition-all duration-300'} ${
+          className={`${pathname === '/chat/anxiety' || pathname === '/chat/anxiety/stories' ? 'hidden' : 'fixed top-0 left-0 right-0 z-40 transition-all duration-300'} ${
             isDark
               ? scrolled
                 ? 'bg-[#080e1a]/95 backdrop-blur-md border-b border-white/10 shadow-lg'

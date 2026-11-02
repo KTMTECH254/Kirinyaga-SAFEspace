@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useTheme } from '../../../providers';
 import {
   AlertCircle,
-  ArrowLeft,
   ArrowUpRight,
   BookOpen,
   Heart,
   MessageCircle,
+  Moon,
   RefreshCw,
+  Sun,
   Video,
   Waves
 } from 'lucide-react';
@@ -66,6 +68,8 @@ async function fetchStoryPage(page: number, signal?: AbortSignal): Promise<Story
 }
 
 export default function AnxietyStoriesPage() {
+  const { theme, setTheme } = useTheme();
+  const isDarkMode = theme !== 'light';
   const [stories, setStories] = useState<VideoStory[]>([]);
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
   const [finishedStoryId, setFinishedStoryId] = useState<string | null>(null);
@@ -125,57 +129,78 @@ export default function AnxietyStoriesPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-gradient-to-b from-[#eef8fb] via-[#f7fbfc] to-[#eaf4f6] text-slate-900">
-      <header className="border-b border-cyan-950/10 bg-white/80 px-4 py-3 backdrop-blur sm:px-8">
+    <main className={`min-h-[100dvh] transition-colors duration-300 ${isDarkMode ? 'bg-gradient-to-b from-[#071321] via-[#0b1928] to-[#071421] text-slate-100' : 'bg-gradient-to-b from-[#eef8fb] via-[#f7fbfc] to-[#eaf4f6] text-slate-900'}`}>
+      <header className={`sticky top-0 z-30 border-b px-4 py-3 backdrop-blur sm:px-8 ${isDarkMode ? 'border-cyan-100/10 bg-[#071321]/90' : 'border-cyan-950/10 bg-white/90'}`}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-          <Link
-            href="/chat/anxiety"
-            className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-medium text-slate-700 transition hover:bg-cyan-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-700"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Return to Lantern Cove</span>
-            <span className="sm:hidden">Chat</span>
-          </Link>
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-950">
-            <Heart className="h-4 w-4 text-teal-700" />
-            Lantern Cove Stories
-          </span>
+          <nav aria-label="Anxiety space navigation" className="flex items-center gap-1">
+            <Link
+              href="/chat/anxiety"
+              className={`inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'text-slate-300 hover:bg-white/10 focus-visible:outline-cyan-300' : 'text-slate-700 hover:bg-cyan-50 focus-visible:outline-cyan-700'}`}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>Community</span>
+            </Link>
+            <Link
+              href="/chat/anxiety/stories"
+              aria-current="page"
+              className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'border-cyan-200/20 bg-cyan-300/10 text-cyan-100 focus-visible:outline-cyan-300' : 'border-teal-200 bg-teal-50 text-teal-900 focus-visible:outline-teal-700'}`}
+            >
+              <Video className="h-4 w-4" />
+              Stories
+            </Link>
+          </nav>
+          <div className="flex items-center gap-2">
+            <span className={`hidden items-center gap-2 text-sm font-semibold sm:inline-flex ${isDarkMode ? 'text-cyan-100' : 'text-cyan-950'}`}>
+              <Heart className={`h-4 w-4 ${isDarkMode ? 'text-teal-300' : 'text-teal-700'}`} />
+              Lantern Cove
+            </span>
+            <button
+              type="button"
+              onClick={() => setTheme(isDarkMode ? 'light' : 'dark')}
+              aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+              aria-pressed={isDarkMode}
+              title={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'border-cyan-100/25 text-amber-200 hover:bg-white/10 focus-visible:outline-cyan-300' : 'border-slate-300 text-slate-700 hover:bg-white focus-visible:outline-teal-700'}`}
+            >
+              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-8 sm:pt-12">
         <section className="mx-auto mb-8 max-w-2xl text-center">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-teal-900/10 bg-white/75 px-3 py-1.5 text-xs font-medium text-teal-900">
+          <p className={`mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${isDarkMode ? 'border-teal-200/15 bg-teal-300/10 text-teal-100' : 'border-teal-900/10 bg-white/75 text-teal-900'}`}>
             <Waves className="h-4 w-4" />
             A quieter kind of short video space
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[#16364b] sm:text-4xl">
+          <h1 className={`text-3xl font-semibold tracking-tight sm:text-4xl ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>
             One moment at a time.
           </h1>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+          <p className={`mx-auto mt-3 max-w-xl text-sm leading-6 sm:text-base ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
             Real community voices, shared gently. Choose a story when you are ready; nothing starts or advances on its own.
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className={`mt-2 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
             No autoplay · No looping · No endless swipe feed
           </p>
         </section>
 
         {error && (
-          <div role="alert" className="mx-auto mb-6 flex max-w-3xl items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+          <div role="alert" className={`mx-auto mb-6 flex max-w-3xl items-start gap-2 rounded-xl border p-4 text-sm ${isDarkMode ? 'border-rose-300/25 bg-rose-950/40 text-rose-100' : 'border-rose-200 bg-rose-50 text-rose-900'}`}>
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {loading ? (
-          <div role="status" className="mx-auto max-w-3xl rounded-2xl border border-white bg-white/80 p-10 text-center text-slate-600 shadow-sm">
+          <div role="status" className={`mx-auto max-w-3xl rounded-2xl border p-10 text-center shadow-sm ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-300' : 'border-white bg-white/80 text-slate-600'}`}>
             Loading community stories…
           </div>
         ) : stories.length === 0 ? (
-          <section className="mx-auto max-w-xl rounded-3xl border border-white bg-white/80 p-8 text-center shadow-sm sm:p-12">
-            <Video className="mx-auto h-9 w-9 text-teal-700" />
-            <h2 className="mt-4 text-xl font-semibold text-[#16364b]">No approved stories yet</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+          <section className={`mx-auto max-w-xl rounded-3xl border p-8 text-center shadow-sm sm:p-12 ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-white bg-white/80'}`}>
+            <Video className={`mx-auto h-9 w-9 ${isDarkMode ? 'text-teal-300' : 'text-teal-700'}`} />
+            <h2 className={`mt-4 text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>No approved stories yet</h2>
+            <p className={`mt-2 text-sm leading-6 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
               New community videos appear here after review. You can return to the room to share a story or talk with the community.
             </p>
             <Link
@@ -191,7 +216,7 @@ export default function AnxietyStoriesPage() {
             <section
               ref={playerRef}
               aria-label="Selected community story"
-              className="mx-auto grid max-w-4xl scroll-mt-4 gap-5 rounded-3xl border border-white bg-white/75 p-4 shadow-[0_20px_70px_rgba(27,65,84,0.10)] sm:grid-cols-[minmax(0,1fr)_minmax(15rem,0.8fr)] sm:items-center sm:gap-8 sm:p-7"
+              className={`mx-auto grid max-w-4xl scroll-mt-4 gap-5 rounded-3xl border p-4 shadow-[0_20px_70px_rgba(27,65,84,0.10)] sm:grid-cols-[minmax(0,1fr)_minmax(15rem,0.8fr)] sm:items-center sm:gap-8 sm:p-7 ${isDarkMode ? 'border-white/10 bg-white/5 shadow-black/20' : 'border-white bg-white/75'}`}
             >
               {selectedStory && (
                 <>
@@ -212,27 +237,27 @@ export default function AnxietyStoriesPage() {
                   </div>
 
                   <div className="min-w-0 py-2 sm:py-0">
-                    <p className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-900">
+                    <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${isDarkMode ? 'bg-teal-300/10 text-teal-100' : 'bg-teal-50 text-teal-900'}`}>
                       <Video className="h-3.5 w-3.5" />
                       Community story
                     </p>
-                    <h2 className="mt-4 text-xl font-semibold text-[#16364b]">{selectedStory.user_name}</h2>
-                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                    <h2 className={`mt-4 text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>{selectedStory.user_name}</h2>
+                    <p className={`mt-3 whitespace-pre-wrap break-words text-sm leading-6 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
                       {selectedStory.caption}
                     </p>
-                    <p className="mt-5 border-l-2 border-teal-300 pl-3 text-sm leading-6 text-slate-600">
+                    <p className={`mt-5 border-l-2 border-teal-300 pl-3 text-sm leading-6 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       Take this at your own pace. You can pause, stop, or leave whenever you need.
                     </p>
 
                     {finishedStoryId === selectedStory.id && (
-                      <div role="status" className="mt-5 rounded-2xl border border-cyan-900/10 bg-cyan-50/80 p-4">
-                        <p className="text-sm font-semibold text-cyan-950">The story has ended.</p>
-                        <p className="mt-1 text-sm leading-5 text-slate-700">
+                      <div role="status" className={`mt-5 rounded-2xl border p-4 ${isDarkMode ? 'border-cyan-100/10 bg-cyan-300/10' : 'border-cyan-900/10 bg-cyan-50/80'}`}>
+                        <p className={`text-sm font-semibold ${isDarkMode ? 'text-cyan-100' : 'text-cyan-950'}`}>The story has ended.</p>
+                        <p className={`mt-1 text-sm leading-5 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
                           Before choosing another, take a breath and notice what you need right now.
                         </p>
                         <Link
                           href="/chat/anxiety"
-                          className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-teal-800/20 bg-white px-4 text-sm font-medium text-teal-900 transition hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-800"
+                          className={`mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'border-teal-200/20 bg-white/5 text-teal-100 hover:bg-white/10 focus-visible:outline-teal-300' : 'border-teal-800/20 bg-white text-teal-900 hover:bg-teal-50 focus-visible:outline-teal-800'}`}
                         >
                           <MessageCircle className="h-4 w-4" />
                           Return to the conversation
@@ -240,7 +265,7 @@ export default function AnxietyStoriesPage() {
                       </div>
                     )}
 
-                    <p className="mt-5 text-xs text-slate-500">
+                    <p className={`mt-5 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                       Stories are moderated before they appear here. They are community experiences, not professional advice.
                     </p>
                   </div>
@@ -251,14 +276,14 @@ export default function AnxietyStoriesPage() {
             <section id="story-shelf" aria-labelledby="story-shelf-title" className="mx-auto mt-10 max-w-5xl scroll-mt-6">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 id="story-shelf-title" className="text-lg font-semibold text-[#16364b]">Choose a story</h2>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <h2 id="story-shelf-title" className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>Choose a story</h2>
+                  <p className={`mt-1 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                     {hasMore
                       ? `${stories.length} stories loaded. More are available when you choose to load them.`
                       : `${stories.length} ${stories.length === 1 ? 'story' : 'stories'} available to browse.`}
                   </p>
                 </div>
-                <p className="text-xs text-slate-500">Each video is up to 3 minutes</p>
+                <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Each video is up to 3 minutes</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -272,17 +297,17 @@ export default function AnxietyStoriesPage() {
                       aria-pressed={isSelected}
                       className={`flex min-h-28 items-start gap-3 rounded-2xl border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800 ${
                         isSelected
-                          ? 'border-teal-700 bg-teal-50 shadow-sm'
-                          : 'border-white bg-white/75 hover:border-teal-300 hover:bg-white'
+                          ? isDarkMode ? 'border-teal-300/60 bg-teal-300/10 shadow-sm' : 'border-teal-700 bg-teal-50 shadow-sm'
+                          : isDarkMode ? 'border-white/10 bg-white/5 hover:border-teal-200/30 hover:bg-white/10' : 'border-white bg-white/75 hover:border-teal-300 hover:bg-white'
                       }`}
                     >
-                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isSelected ? 'bg-teal-800 text-white' : 'bg-cyan-50 text-teal-800'}`}>
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isSelected ? 'bg-teal-800 text-white' : isDarkMode ? 'bg-cyan-300/10 text-teal-100' : 'bg-cyan-50 text-teal-800'}`}>
                         <Video className="h-5 w-5" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-xs font-medium text-slate-500">Story {index + 1}</span>
-                        <span className="mt-1 block truncate text-sm font-semibold text-[#16364b]">{story.user_name}</span>
-                        <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-600">{story.caption}</span>
+                        <span className={`block text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Story {index + 1}</span>
+                        <span className={`mt-1 block truncate text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>{story.user_name}</span>
+                        <span className={`mt-1 line-clamp-2 block text-xs leading-5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{story.caption}</span>
                       </span>
                     </button>
                   );
@@ -295,7 +320,7 @@ export default function AnxietyStoriesPage() {
                     type="button"
                     onClick={() => void loadMoreStories()}
                     disabled={loadingMore}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-full border border-teal-800/20 bg-white px-5 text-sm font-semibold text-teal-900 transition hover:bg-teal-50 disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-5 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${isDarkMode ? 'border-teal-200/20 bg-white/5 text-teal-100 hover:bg-white/10 focus-visible:outline-teal-300' : 'border-teal-800/20 bg-white text-teal-900 hover:bg-teal-50 focus-visible:outline-teal-800'}`}
                   >
                     <RefreshCw className={`h-4 w-4 ${loadingMore ? 'animate-spin' : ''}`} />
                     {loadingMore ? 'Loading stories…' : 'Load 24 more stories'}
@@ -306,10 +331,10 @@ export default function AnxietyStoriesPage() {
           </>
         )}
 
-        <footer className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 border-t border-cyan-950/10 pt-6 text-center sm:flex-row sm:justify-center">
+        <footer className={`mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 border-t pt-6 text-center sm:flex-row sm:justify-center ${isDarkMode ? 'border-cyan-100/10' : 'border-cyan-950/10'}`}>
           <Link
             href="/education"
-            className="inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm text-slate-700 transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-800"
+            className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'text-slate-300 hover:bg-white/10 focus-visible:outline-teal-300' : 'text-slate-700 hover:bg-white focus-visible:outline-teal-800'}`}
           >
             <BookOpen className="h-4 w-4" />
             Grounding resources
@@ -317,7 +342,7 @@ export default function AnxietyStoriesPage() {
           </Link>
           <Link
             href="/chat/anxiety"
-            className="inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm text-slate-700 transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-800"
+            className={`inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'text-slate-300 hover:bg-white/10 focus-visible:outline-teal-300' : 'text-slate-700 hover:bg-white focus-visible:outline-teal-800'}`}
           >
             <Heart className="h-4 w-4" />
             Back to the community

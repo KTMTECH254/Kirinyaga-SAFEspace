@@ -1318,14 +1318,29 @@ export default function AnxietyChatPage() {
                 { label: 'Resources', href: '/education', icon: BookOpen },
                 { label: 'Progress', href: '/progress', icon: Compass },
                 { label: 'Garden', href: '/chat/anxiety', icon: Sprout },
+                { label: 'Story Space', href: '/chat/anxiety/stories', icon: Video },
                 { label: 'Profile', href: '/profile', icon: UserRound }
               ].map(({ label, href, icon: Icon, active }) => (
-                <Link key={label} href={href} aria-current={active ? 'page' : undefined} className={`flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition xl:px-3 ${active ? 'border-b-2 border-cyan-400 text-cyan-200' : isDarkMode ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}>
+                <Link
+                  key={label}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition xl:px-3 ${active ? 'border-b-2 border-cyan-400 text-cyan-200' : href === '/chat/anxiety/stories' ? 'border-b-2 border-teal-400 bg-teal-400/10 font-semibold text-cyan-100 hover:bg-teal-400/15' : isDarkMode ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}
+                >
                   <Icon className="h-3.5 w-3.5" />{label}
                 </Link>
               ))}
             </nav>
             <div className="flex shrink-0 items-center gap-2">
+              <Link
+                href="/chat/anxiety/stories"
+                aria-label="Open story space"
+                title="Story Space"
+                className={`flex h-9 items-center justify-center gap-2 rounded-full border px-3 text-xs font-medium transition lg:hidden ${isDarkMode ? 'border-cyan-100/25 text-cyan-100 hover:bg-white/10' : 'border-slate-300 text-slate-700 hover:bg-white'}`}
+              >
+                <Video className="h-4 w-4" />
+                <span className="hidden sm:inline">Stories</span>
+              </Link>
               <div className={`hidden items-center gap-2 rounded-full border px-2.5 py-1.5 xl:flex ${isDarkMode ? 'border-cyan-100/25 bg-[#071a2c]/90' : 'border-slate-200 bg-white/90'}`}>
                 <span className={`h-2.5 w-2.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.85)]' : 'bg-amber-400'}`} />
                 <span className={`text-[10px] ${isDarkMode ? 'text-slate-100' : 'text-[#243e57]'}`}>{onlineCount} peers here</span>
