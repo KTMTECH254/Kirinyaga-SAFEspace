@@ -68,9 +68,15 @@ export async function GET(request: Request) {
   try {
     const isAdmin = await hasAdminSession(request).catch(() => false);
     const ownerId = getVideoStoryOwnerId(request);
+    const requestUrl = new URL(request.url);
+    const isLibraryRequest = requestUrl.searchParams.get('view') === 'library';
+    const requestedPage = Number.parseInt(requestUrl.searchParams.get('page') ?? '0', 10);
+    const pageNumber = Number.isSafeInteger(requestedPage) ? Math.min(Math.max(requestedPage, 0), 10000) : 0;
+    const pageSize = 24;
+    let hasMore = false;
 
     let stories;
-    if (isAdmin) {
+    if (isAdmin && !isLibraryRequest) {
       const { data: pendingStories, error: pendingError } = await supabaseAdmin
         .from('anxiety_video_stories')
         .select('id,user_id,user_name,caption,storage_path,status,created_at')
@@ -103,12 +109,15 @@ export async function GET(request: Request) {
 
       stories = [...(pendingStories ?? []), ...(reviewedStories ?? [])];
     } else {
-      const { data: approvedStories, error: approvedError } = await supabaseAdmin
+      const approvedQuery = supabaseAdmin
         .from('anxiety_video_stories')
         .select('id,user_id,user_name,caption,storage_path,status,created_at')
         .eq('status', 'approved')
-        .order('created_at', { ascending: false })
-        .limit(ownerId ? 10 : 12);
+        .order('created_at', { ascending: false });
+      const approvedResult = isLibraryRequest
+        ? await approvedQuery.range(pageNumber * pageSize, pageNumber * pageSize + pageSize)
+        : await approvedQuery.limit(ownerId ? 10 : 12);
+      const { data: approvedData, error: approvedError } = approvedResult;
 
       if (approvedError) {
         console.error('Unable to load approved Anxiety video stories:', approvedError);
@@ -118,8 +127,13 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Video stories could not be loaded.' }, { status: 500 });
       }
 
+      const approvedStories = isLibraryRequest
+        ? (approvedData ?? []).slice(0, pageSize)
+        : approvedData;
+      hasMore = isLibraryRequest && (approvedData?.length ?? 0) > pageSize;
+
       let pendingStories: typeof approvedStories = [];
-      if (ownerId) {
+      if (ownerId && !isLibraryRequest) {
         const { data, error } = await supabaseAdmin
           .from('anxiety_video_stories')
           .select('id,user_id,user_name,caption,storage_path,status,created_at')
@@ -165,7 +179,10 @@ export async function GET(request: Request) {
     );
 
     return NextResponse.json(
-      { stories: storyList.filter(Boolean) },
+      {
+        stories: storyList.filter(Boolean),
+        ...(isLibraryRequest ? { page: pageNumber, pageSize, hasMore } : {})
+      },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {

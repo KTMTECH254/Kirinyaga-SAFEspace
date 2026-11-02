@@ -1479,6 +1479,12 @@ export default function AnxietyChatPage() {
                       </div>
                     ))
                   )}
+                  <Link
+                    href="/chat/anxiety/stories"
+                    className={`flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 text-[9px] font-medium ${isDarkMode ? 'border-teal-200/20 bg-teal-500/10 text-teal-100 hover:bg-teal-500/15' : 'border-teal-200 bg-teal-50 text-teal-900 hover:bg-teal-100'}`}
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5" />Open the story space
+                  </Link>
                   <button
                     type="button"
                     onClick={() => setShowVideoUpload(open => !open)}
@@ -2024,18 +2030,27 @@ export default function AnxietyChatPage() {
                   {activeVideoStory ? 'One story at a time · No autoplay' : 'Choose a story to watch · No endless feed'}
                 </p>
               </div>
-              <button
-                ref={videoModalCloseButtonRef}
-                type="button"
-                onClick={() => {
-                  setShowVideoLibrary(false);
-                  setActiveVideoStory(null);
-                }}
-                aria-label="Close video stories and return to chat"
-                className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-white/20 text-2xl leading-none hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  href="/chat/anxiety/stories"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 px-3 text-xs font-medium text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
+                  <ArrowUpRight className="h-4 w-4" />
+                  <span className="hidden sm:inline">Story space</span>
+                </Link>
+                <button
+                  ref={videoModalCloseButtonRef}
+                  type="button"
+                  onClick={() => {
+                    setShowVideoLibrary(false);
+                    setActiveVideoStory(null);
+                  }}
+                  aria-label="Close video stories and return to chat"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-white/20 text-2xl leading-none hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </header>
 
             {activeVideoStory ? (
