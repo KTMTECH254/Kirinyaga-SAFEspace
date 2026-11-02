@@ -475,9 +475,10 @@ export default function AnxietyChatPage() {
   const [videoStoryError, setVideoStoryError] = useState<string | null>(null);
   const [videoStorySaving, setVideoStorySaving] = useState(false);
   const [videoStoryCheckingDuration, setVideoStoryCheckingDuration] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<keyof typeof themes>(() => {
+  const [currentTheme] = useState<keyof typeof themes>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('appTheme') as keyof typeof themes) || 'calm';
+      const savedTheme = localStorage.getItem('appTheme');
+      return savedTheme && savedTheme in themes ? savedTheme as keyof typeof themes : 'calm';
     }
     return 'calm';
   });
@@ -522,16 +523,9 @@ export default function AnxietyChatPage() {
   }, [currentUser?.id, isAdmin]);
 
   useEffect(() => {
-    if (!selectedVideoFile) {
-      setSelectedVideoPreview(null);
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(selectedVideoFile);
-    setSelectedVideoPreview(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [selectedVideoFile]);
+    if (!selectedVideoPreview) return;
+    return () => URL.revokeObjectURL(selectedVideoPreview);
+  }, [selectedVideoPreview]);
   
   const channelRef = useRef<RealtimeChannel | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
@@ -575,8 +569,9 @@ export default function AnxietyChatPage() {
     const file = event.target.files?.[0] ?? null;
     const selectionCheck = ++videoSelectionCheckRef.current;
     setVideoStoryCheckingDuration(false);
+    setSelectedVideoFile(null);
+    setSelectedVideoPreview(null);
     if (!file) {
-      setSelectedVideoFile(null);
       return;
     }
 
@@ -595,7 +590,6 @@ export default function AnxietyChatPage() {
 
     setVideoStoryError(null);
     setVideoStoryCheckingDuration(true);
-    setSelectedVideoFile(null);
     try {
       const duration = await readVideoDuration(file);
       if (selectionCheck !== videoSelectionCheckRef.current) return;
@@ -604,6 +598,7 @@ export default function AnxietyChatPage() {
         return;
       }
       setSelectedVideoFile(file);
+      setSelectedVideoPreview(URL.createObjectURL(file));
     } catch (error) {
       if (selectionCheck === videoSelectionCheckRef.current) {
         setVideoStoryError(error instanceof Error ? error.message : 'The video length could not be checked.');
@@ -734,12 +729,6 @@ export default function AnxietyChatPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keep the room-specific color palette while honoring the site-wide color mode.
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('appTheme') as keyof typeof themes || 'calm';
-    setCurrentTheme(savedTheme);
-  }, []);
-
   const addQuietSignal = (signal: string) => {
     setNewMessage(current => `${current}${current && !current.endsWith(' ') ? ' ' : ''}${signal}`);
     setShowSignals(false);
@@ -759,15 +748,6 @@ export default function AnxietyChatPage() {
       router.push('/login');
     }
   }, [isLoading, router]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('appTheme') !== null) {
-      const storedTheme = localStorage.getItem('appTheme') as keyof typeof themes;
-      if (storedTheme && themes[storedTheme]) {
-        setCurrentTheme(storedTheme);
-      }
-    }
-  }, []);
 
   // Setup real-time subscription
   const setupRealtime = async (userId: string, sessionName: string) => {

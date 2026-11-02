@@ -29,26 +29,36 @@ export default function AdminVideoStoriesPage() {
   const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadStories = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/chat/anxiety/video-stories', { cache: 'no-store' });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || 'Video stories could not be loaded.');
-      }
-      setStories(Array.isArray(payload.stories) ? payload.stories : []);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Video stories could not be loaded.');
-    } finally {
-      setLoading(false);
+  const fetchStories = useCallback(async () => {
+    const response = await fetch('/api/chat/anxiety/video-stories', { cache: 'no-store' });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || 'Video stories could not be loaded.');
     }
+    return Array.isArray(payload.stories) ? payload.stories as VideoStory[] : [];
   }, []);
 
   useEffect(() => {
-    void loadStories();
-  }, [loadStories]);
+    let cancelled = false;
+    void fetchStories()
+      .then(loadedStories => {
+        if (cancelled) return;
+        setStories(loadedStories);
+        setError(null);
+      })
+      .catch(loadError => {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Video stories could not be loaded.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchStories]);
 
   const filteredStories = useMemo(
     () => filter === 'all' ? stories : stories.filter(story => story.status === filter),
@@ -117,7 +127,16 @@ export default function AdminVideoStoriesPage() {
         </div>
         <button
           type="button"
-          onClick={() => void loadStories()}
+          onClick={() => {
+            setLoading(true);
+            setError(null);
+            void fetchStories()
+              .then(setStories)
+              .catch(loadError => {
+                setError(loadError instanceof Error ? loadError.message : 'Video stories could not be loaded.');
+              })
+              .finally(() => setLoading(false));
+          }}
           disabled={loading}
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
         >
