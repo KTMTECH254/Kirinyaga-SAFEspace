@@ -10,7 +10,8 @@ import {
   Settings,
   LogOut,
   Shield,
-  Home
+  Home,
+  Video
 } from 'lucide-react';
 
 export default function AdminLayout({
@@ -113,6 +114,14 @@ export default function AdminLayout({
               <span className="font-medium">Resource Management</span>
             </Link>
             
+            <Link
+              href="/admin/video-stories"
+              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+            >
+              <Video className="h-5 w-5" />
+              <span className="font-medium">Video Stories</span>
+            </Link>
+
             <Link
               href="/admin/reports"
               className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"

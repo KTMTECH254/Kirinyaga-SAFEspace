@@ -23,7 +23,7 @@ import {
   ChevronRight,
   Phone,
   Lock,
-  Brain,
+  Cross,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -112,7 +112,7 @@ function AppLayout({
       </head>
       <body className={`${inter.className} bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] antialiased dark:bg-[hsl(var(--bg-primary))] dark:text-[hsl(var(--text-primary))]`}>
         <header
-          className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+          className={`${pathname === '/chat/anxiety' ? 'hidden' : 'fixed top-0 left-0 right-0 z-40 transition-all duration-300'} ${
             isDark
               ? scrolled
                 ? 'bg-[#080e1a]/95 backdrop-blur-md border-b border-white/10 shadow-lg'
@@ -129,7 +129,7 @@ function AppLayout({
                   <div className="relative">
                     <div className={`absolute inset-0 rounded-xl blur transition-all group-hover:blur-sm ${isDark ? 'bg-cyan-300/30' : 'bg-blue-100'}`}></div>
                     <div className={`relative rounded-xl p-2.5 text-white shadow-sm ${isDark ? 'bg-gradient-to-br from-[#29d7bd] to-[#438cf0]' : 'bg-gradient-to-br from-blue-500 to-blue-600'}`}>
-                      {pathname === '/' ? <Brain size={24} /> : <Heart size={24} className="fill-current" />}
+                      <Cross size={24} strokeWidth={2.5} />
                     </div>
                   </div>
                   <div className="leading-tight">
@@ -286,13 +286,13 @@ function AppLayout({
           )}
         </header>
 
-        <main className="pt-20 min-h-screen">
+        <main className={pathname === '/chat/anxiety' ? 'min-h-screen' : 'pt-20 min-h-screen'}>
           {children}
         </main>
 
         {!['/', '/chat-rooms', '/chat/anxiety'].includes(pathname) && <AnonymousProfile />}
 
-        <footer className={`border-t ${isDark ? 'border-white/10 bg-[#080e1a]' : 'border-gray-100 bg-gradient-to-b from-white to-blue-50'}`}>
+        {pathname !== '/chat/anxiety' && <footer className={`border-t ${isDark ? 'border-white/10 bg-[#080e1a]' : 'border-gray-100 bg-gradient-to-b from-white to-blue-50'}`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
               <div className="space-y-4">
@@ -377,7 +377,7 @@ function AppLayout({
               </div>
             </div>
           </div>
-        </footer>
+        </footer>}
       </body>
     </html>
   );

@@ -3,7 +3,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useTheme } from '../../providers';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { ensureSessionAnonymousName } from '@/utils/sessionAnon';
@@ -22,9 +24,25 @@ import {
   Sparkles,
   Brain,
   Waves,
-  Bell,
-  CheckCircle2,
-  LogOut
+  LogOut,
+  Smile,
+  ChevronDown,
+  Sparkle,
+  Users,
+  House,
+  MessageCircle,
+  BookOpen,
+  Sprout,
+  Compass,
+  UserRound,
+  ArrowUpRight,
+  CircleAlert,
+  Sun,
+  Moon,
+  Cross,
+  Video,
+  UploadCloud,
+  Plus
 } from 'lucide-react';
 
 interface Message {
@@ -41,6 +59,17 @@ interface Message {
   parent_message_id?: string | null;
 }
 
+interface VideoStory {
+  id: string;
+  user_id: string;
+  user_name: string;
+  caption: string;
+  storage_path: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  video_url?: string;
+}
+
 interface ReplyData {
   parentId: string;
   parentUserName: string;
@@ -48,6 +77,32 @@ interface ReplyData {
 }
 
 const roomId = 'anxiety';
+const MAX_VIDEO_DURATION_SECONDS = 3 * 60;
+
+function readVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const objectUrl = URL.createObjectURL(file);
+    const cleanUp = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute('src');
+      video.load();
+    };
+
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const duration = video.duration;
+      cleanUp();
+      if (Number.isFinite(duration)) resolve(duration);
+      else reject(new Error('The video length could not be checked.'));
+    };
+    video.onerror = () => {
+      cleanUp();
+      reject(new Error('The video length could not be checked. Try another video file.'));
+    };
+    video.src = objectUrl;
+  });
+}
 
 // Psychological themes
 const themes = {
@@ -240,12 +295,53 @@ const groundingSteps = [
   { label: 'Reflect', detail: 'Choose one supportive thought.', icon: Brain }
 ];
 
-const quickSupportMessages = [
-  'You are not alone in this moment.',
-  'It is okay to pause and breathe.',
-  'Small steps are still progress.',
-  'You deserve gentleness right now.'
+const coveWaysToFeel = [
+  { icon: '🏮', title: 'Lantern', detail: 'You’re seen' },
+  { icon: '☁️', title: 'Cloud', detail: 'You’re not alone' },
+  { icon: '🌱', title: 'Sprout', detail: 'Keep going' },
+  { icon: '🩹', title: 'Stitched', detail: 'You matter' },
+  { icon: '☾', title: 'Moon', detail: 'You’ll be okay' },
+  { icon: '🪨', title: 'Pebble', detail: 'Still here' },
+  { icon: '◉', title: 'Listening', detail: 'Always' }
 ];
+
+const arrivalMoods = [
+  { label: 'Calm', icon: '🌱', message: 'I am feeling calm in this moment.' },
+  { label: 'Anxious', icon: '🌧️', message: 'I am feeling anxious right now.' },
+  { label: 'Sad', icon: '🫧', message: 'I am feeling sad and could use some company.' },
+  { label: 'Okay', icon: '☀️', message: 'I am doing okay right now.' },
+  { label: 'Overwhelmed', icon: '🌊', message: 'Everything feels like a lot right now.' },
+  { label: 'Hopeful', icon: '✨', message: 'There is a small part of me that feels hopeful.' },
+  { label: 'Angry', icon: '🔥', message: 'I am feeling frustrated and need a safe place to talk.' },
+  { label: 'Other', icon: '💙', message: 'I am feeling something I cannot quite name yet.' }
+];
+
+const quietSignals = [
+  { symbol: '🏮', label: 'Lantern' },
+  { symbol: '✧', label: 'A small light' },
+  { symbol: '☾', label: 'Moon' },
+  { symbol: '𓂃', label: 'A gentle pause' },
+  { symbol: '꩜', label: 'A little courage' },
+  { symbol: '♡', label: 'Care' },
+  { symbol: '𓇢𓆸', label: 'New growth' },
+  { symbol: '☁︎', label: 'Soft cloud' }
+];
+
+const anonymousAvatars = [
+  { symbol: '🏮', style: 'from-amber-300/25 to-orange-500/30 border-amber-200/40' },
+  { symbol: '🌙', style: 'from-indigo-300/25 to-blue-500/30 border-indigo-200/40' },
+  { symbol: '🪷', style: 'from-pink-300/25 to-violet-500/30 border-pink-200/40' },
+  { symbol: '🦋', style: 'from-cyan-300/25 to-blue-500/30 border-cyan-200/40' },
+  { symbol: '🌱', style: 'from-emerald-300/25 to-green-500/30 border-emerald-200/40' },
+  { symbol: '☁️', style: 'from-slate-300/25 to-sky-500/30 border-slate-200/40' },
+  { symbol: '✨', style: 'from-yellow-300/25 to-amber-500/30 border-yellow-200/40' },
+  { symbol: '🪨', style: 'from-teal-300/25 to-cyan-500/30 border-teal-200/40' }
+];
+
+function getAnonymousAvatar(name: string) {
+  const stableValue = Array.from(name).reduce((total, character) => total + character.charCodeAt(0), 0);
+  return anonymousAvatars[stableValue % anonymousAvatars.length];
+}
 
 // User utility functions (moved from utils/userUtils.ts for simplicity)
 const getUserFromLocalStorage = () => {
@@ -358,7 +454,7 @@ const getUserForChat = () => {
 
 export default function AnxietyChatPage() {
   const router = useRouter();
-  const { isDark: isDarkMode } = useTheme();
+  const { isDark: isDarkMode, setTheme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<AnonymousUser | null>(null);
@@ -366,6 +462,19 @@ export default function AnxietyChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
   const [onlineCount, setOnlineCount] = useState(0);
+  const [arrivalMood, setArrivalMood] = useState<string | null>(null);
+  const [showSignals, setShowSignals] = useState(false);
+  const [showMobileSupport, setShowMobileSupport] = useState(false);
+  const [videoStories, setVideoStories] = useState<VideoStory[]>([]);
+  const [showVideoLibrary, setShowVideoLibrary] = useState(false);
+  const [activeVideoStory, setActiveVideoStory] = useState<VideoStory | null>(null);
+  const [showVideoUpload, setShowVideoUpload] = useState(false);
+  const [videoCaption, setVideoCaption] = useState('');
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [selectedVideoPreview, setSelectedVideoPreview] = useState<string | null>(null);
+  const [videoStoryError, setVideoStoryError] = useState<string | null>(null);
+  const [videoStorySaving, setVideoStorySaving] = useState(false);
+  const [videoStoryCheckingDuration, setVideoStoryCheckingDuration] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<keyof typeof themes>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('appTheme') as keyof typeof themes) || 'calm';
@@ -389,16 +498,198 @@ export default function AnxietyChatPage() {
       setIsAdmin(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.id && !isAdmin) {
+      return;
+    }
+
+    const loadVideoStories = async () => {
+      try {
+        const response = await fetch('/api/chat/anxiety/video-stories');
+        const payload = await response.json();
+        if (!response.ok) {
+          setVideoStoryError(payload.error || 'Video stories are unavailable right now.');
+          return;
+        }
+        setVideoStories(Array.isArray(payload.stories) ? payload.stories : []);
+      } catch (error) {
+        console.error('Unable to load Anxiety video stories:', error);
+      }
+    };
+
+    loadVideoStories();
+  }, [currentUser?.id, isAdmin]);
+
+  useEffect(() => {
+    if (!selectedVideoFile) {
+      setSelectedVideoPreview(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedVideoFile);
+    setSelectedVideoPreview(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedVideoFile]);
   
   const channelRef = useRef<RealtimeChannel | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const pendingMessageScrollRef = useRef<string | null>(null);
   const initialMessagesLoadedRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoStoriesButtonRef = useRef<HTMLButtonElement>(null);
+  const videoModalCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const videoSelectionCheckRef = useRef(0);
   const addedMessageIdsRef = useRef<Set<string>>(new Set());
   
   const roomData = roomInfo[roomId];
   const currentThemeConfig = themes[currentTheme][isDarkMode ? 'dark' : 'light'];
+
+  const videoModalOpen = showVideoLibrary || activeVideoStory !== null;
+
+  useEffect(() => {
+    if (!videoModalOpen) return;
+
+    const triggerButton = videoStoriesButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const animationFrame = window.requestAnimationFrame(() => videoModalCloseButtonRef.current?.focus());
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowVideoLibrary(false);
+        setActiveVideoStory(null);
+      }
+    };
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+      triggerButton?.focus();
+    };
+  }, [videoModalOpen]);
+
+  const handleVideoUploadChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    const selectionCheck = ++videoSelectionCheckRef.current;
+    setVideoStoryCheckingDuration(false);
+    if (!file) {
+      setSelectedVideoFile(null);
+      return;
+    }
+
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    if (!allowedTypes.includes(file.type)) {
+      setVideoStoryError('Choose a valid MP4, WebM, or MOV video file.');
+      setSelectedVideoFile(null);
+      return;
+    }
+
+    if (file.size > 30 * 1024 * 1024) {
+      setVideoStoryError('Keep each video story under 30 MB.');
+      setSelectedVideoFile(null);
+      return;
+    }
+
+    setVideoStoryError(null);
+    setVideoStoryCheckingDuration(true);
+    setSelectedVideoFile(null);
+    try {
+      const duration = await readVideoDuration(file);
+      if (selectionCheck !== videoSelectionCheckRef.current) return;
+      if (duration > MAX_VIDEO_DURATION_SECONDS) {
+        setVideoStoryError('Video stories must be 3 minutes or shorter.');
+        return;
+      }
+      setSelectedVideoFile(file);
+    } catch (error) {
+      if (selectionCheck === videoSelectionCheckRef.current) {
+        setVideoStoryError(error instanceof Error ? error.message : 'The video length could not be checked.');
+      }
+    } finally {
+      if (selectionCheck === videoSelectionCheckRef.current) {
+        setVideoStoryCheckingDuration(false);
+      }
+    }
+  };
+
+  const handleVideoStorySubmit = async () => {
+    if (!selectedVideoFile || !videoCaption.trim() || !currentUser) {
+      setVideoStoryError('Add a short caption and pick a video file before posting.');
+      return;
+    }
+
+    setVideoStorySaving(true);
+    setVideoStoryError(null);
+
+    try {
+      const response = await fetch('/api/chat/anxiety/video-stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'prepare-upload',
+          fileType: selectedVideoFile.type,
+          fileSize: selectedVideoFile.size
+        })
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.path) {
+        throw new Error(payload?.error || 'Unable to prepare the upload.');
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from('anxiety-video-stories')
+        .uploadToSignedUrl(payload.path, payload.token, selectedVideoFile, {
+          contentType: selectedVideoFile.type,
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw new Error(`The video upload failed: ${uploadError.message}`);
+      }
+
+      const finalResponse = await fetch('/api/chat/anxiety/video-stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit',
+          userId: payload.ownerId,
+          userName: currentUser.name,
+          caption: videoCaption.trim(),
+          path: payload.path
+        })
+      });
+
+      const finalPayload = await finalResponse.json();
+      if (!finalResponse.ok) {
+        throw new Error(finalPayload?.error || 'The story could not be saved.');
+      }
+
+      const nextStory: VideoStory = {
+        id: finalPayload.story?.id || payload.path,
+        user_id: payload.ownerId,
+        user_name: currentUser.name,
+        caption: videoCaption.trim(),
+        storage_path: payload.path,
+        status: finalPayload.story?.status || 'pending',
+        created_at: new Date().toISOString(),
+        video_url: finalPayload.story?.video_url
+      };
+
+      setVideoStories(prev => [nextStory, ...prev]);
+      setShowVideoUpload(false);
+      setVideoCaption('');
+      setSelectedVideoFile(null);
+      setSelectedVideoPreview(null);
+    } catch (error) {
+      setVideoStoryError(error instanceof Error ? error.message : 'Unable to upload this video story.');
+    } finally {
+      setVideoStorySaving(false);
+    }
+  };
 
   const exitAdminMode = async () => {
     try {
@@ -449,7 +740,17 @@ export default function AnxietyChatPage() {
     setCurrentTheme(savedTheme);
   }, []);
 
-  const supportedMessage = quickSupportMessages[Math.floor((messages.length + Date.now()) % quickSupportMessages.length)];
+  const addQuietSignal = (signal: string) => {
+    setNewMessage(current => `${current}${current && !current.endsWith(' ') ? ' ' : ''}${signal}`);
+    setShowSignals(false);
+    inputRef.current?.focus();
+  };
+
+  const shareArrivalMood = (mood: typeof arrivalMoods[number]) => {
+    setArrivalMood(mood.label);
+    setNewMessage(current => current || mood.message);
+    inputRef.current?.focus();
+  };
 
   // Handle redirect
   useEffect(() => {
@@ -536,11 +837,11 @@ export default function AnxietyChatPage() {
                 msg.id === deletedId 
                   ? { ...msg, is_deleted: true, message: '[Message deleted]' } 
                   : msg
-              )
+              ) 
             );
             setConfirmDeleteId(null);
           }
-        }
+        } 
       );
 
       channel.subscribe(async (status) => {
@@ -558,7 +859,7 @@ export default function AnxietyChatPage() {
         
         if (status === 'CHANNEL_ERROR') {
           setTimeout(() => setupRealtime(userId, sessionName), 3000);
-        }
+        } 
       });
 
       channelRef.current = channel;
@@ -604,7 +905,7 @@ export default function AnxietyChatPage() {
         console.error('Error initializing chat:', error);
       } finally {
         setIsLoading(false);
-      }
+      }   
     };
 
     initializeChat();
@@ -613,11 +914,11 @@ export default function AnxietyChatPage() {
       if (channelRef.current) {
         console.log('Cleaning up real-time channel');
         supabase.removeChannel(channelRef.current);
-      }
-    };
+      }  
+    };  
   }, []);
 
-  // ==================== CRUD OPERATIONS ====================
+  // ==================== CRUD OPERATIONS =====================
 
   // CREATE: Send new message
   const handleSendMessage = async () => {
@@ -639,7 +940,7 @@ export default function AnxietyChatPage() {
         message: messageText,
         created_at: new Date().toISOString(),
         is_edited: false,
-        is_deleted: false
+        is_deleted: false           
       };
 
       // If replying, add parent message ID
@@ -651,7 +952,7 @@ export default function AnxietyChatPage() {
       setMessages(prev => [...prev, tempMessage]);
       setNewMessage('');
       setReplyingTo(null);
-      
+    
       // Send to Supabase
       const messageData: {
         room_id: string;
@@ -1018,95 +1319,316 @@ export default function AnxietyChatPage() {
   }
 
   return (
-    <div className={`flex min-h-screen items-center justify-center ${currentThemeConfig.bg} font-sans`}>
-      <main className={`flex min-h-[100dvh] w-full max-w-6xl flex-col py-4 px-3 sm:py-8 sm:px-6 ${currentThemeConfig.bg}`}>
-        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:gap-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-slate-700 backdrop-blur-sm">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Safe space
+    <div data-anxiety-theme={isDarkMode ? 'dark' : 'light'} className={`relative isolate min-h-[100dvh] overflow-x-hidden font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#04101d] text-white' : 'bg-[#eaf2f7] text-[#142b45]'}`}>
+      <div aria-hidden="true" className={`pointer-events-none fixed inset-0 z-0 ${isDarkMode ? 'bg-[radial-gradient(ellipse_at_top,rgba(11,75,105,0.24),transparent_58%)]' : 'bg-[radial-gradient(ellipse_at_top,rgba(91,174,193,0.18),transparent_58%)]'}`} />
+      <div className="relative z-10 flex min-h-[100dvh] flex-col">
+        <header className={`z-40 shrink-0 border-b backdrop-blur-2xl ${isDarkMode ? 'border-cyan-200/15 bg-[#031326]/95' : 'border-white/60 bg-[#f8fcff]/95'}`}>
+          <div className="mx-auto flex min-h-[3.5rem] max-h-[3.5rem] max-w-[1800px] items-center justify-between gap-3 px-3 sm:px-5">
+            <Link href="/" className="flex shrink-0 items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-indigo-500 text-xl shadow-[0_0_24px_rgba(45,212,191,0.3)]" aria-hidden="true"><Cross className="h-5 w-5 text-white" strokeWidth={2.5} /></span>
+              <span className="leading-tight">
+                <span className={`block text-xs font-semibold sm:text-sm ${isDarkMode ? 'text-white' : 'text-[#122c47]'}`}>Unspoken Minds</span>
+                <span className={`block text-[10px] ${isDarkMode ? 'text-cyan-100/75' : 'text-[#506983]'}`}>SafeSpace</span>
+              </span>
+            </Link>
+            <nav aria-label="Site navigation" className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex">
+              {[
+                { label: 'Home', href: '/', icon: House },
+                { label: 'Chat Rooms', href: '/chat-rooms', icon: MessageCircle, active: true },
+                { label: 'Resources', href: '/education', icon: BookOpen },
+                { label: 'Progress', href: '/progress', icon: Compass },
+                { label: 'Garden', href: '/chat/anxiety', icon: Sprout },
+                { label: 'Profile', href: '/profile', icon: UserRound }
+              ].map(({ label, href, icon: Icon, active }) => (
+                <Link key={label} href={href} aria-current={active ? 'page' : undefined} className={`flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition xl:px-3 ${active ? 'border-b-2 border-cyan-400 text-cyan-200' : isDarkMode ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}>
+                  <Icon className="h-3.5 w-3.5" />{label}
+                </Link>
+              ))}
+            </nav>
+            <div className="flex shrink-0 items-center gap-2">
+              <div className={`hidden items-center gap-2 rounded-full border px-2.5 py-1.5 xl:flex ${isDarkMode ? 'border-cyan-100/25 bg-[#071a2c]/90' : 'border-slate-200 bg-white/90'}`}>
+                <span className={`h-2.5 w-2.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.85)]' : 'bg-amber-400'}`} />
+                <span className={`text-[10px] ${isDarkMode ? 'text-slate-100' : 'text-[#243e57]'}`}>{onlineCount} peers here</span>
+                <ShieldCheck className={`h-3.5 w-3.5 ${isDarkMode ? 'text-amber-300' : 'text-amber-700'}`} />
               </div>
-              <h1 className={`text-2xl font-bold sm:text-3xl ${currentThemeConfig.text}`}>{roomData.name}</h1>
-              <p className={`${currentThemeConfig.subtext} mt-1 max-w-2xl text-sm md:text-base`}>{roomData.description}</p>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-full border border-white/30 bg-white/15 px-3 py-2 backdrop-blur-sm">
-              <div className={`h-2.5 w-2.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-              <p className={`${currentThemeConfig.subtext} text-sm`}>
-                {connectionStatus === 'connected' ? 'Live support room' : 'Connecting...'}
-              </p>
-            </div>
-            {isAdmin && (
+              {isAdmin && (
+                <button type="button" onClick={exitAdminMode} aria-label="Exit admin mode" title="Exit admin mode" className={`flex h-9 w-9 items-center justify-center rounded-full border ${isDarkMode ? 'border-amber-300/30 text-amber-200' : 'border-amber-300 text-amber-800'}`}>
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={exitAdminMode}
-                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-medium ${isDarkMode ? 'border-amber-700 bg-amber-950/50 text-amber-200 hover:bg-amber-900' : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'}`}
+                onClick={() => setTheme(isDarkMode ? 'light' : 'dark')}
+                aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+                aria-pressed={isDarkMode}
+                title={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+                className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${isDarkMode ? 'border-cyan-100/25 text-amber-200 hover:bg-white/10' : 'border-slate-300 text-slate-700 hover:bg-white'}`}
               >
-                <LogOut className="h-4 w-4" />
-                Exit admin mode
+                {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
-            )}
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[1.3fr_0.7fr]">
-            <div className={`rounded-2xl border p-4 ${currentThemeConfig.card}`}>
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                <Bell className="h-4 w-4" />
-                Gentle check-in
-              </div>
-              <p className={`mt-2 text-sm ${currentThemeConfig.subtext}`}>
-                {supportedMessage}
-              </p>
-            </div>
-
-            <div className={`rounded-2xl border p-4 ${currentThemeConfig.card}`}>
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                <CheckCircle2 className="h-4 w-4" />
-                Community support
-              </div>
-              <p className={`mt-2 text-sm ${currentThemeConfig.subtext}`}>
-                {onlineCount} people are here with you right now.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:mb-5 sm:gap-3 md:grid-cols-4">
-          {groundingSteps.map(({ label, detail, icon: Icon }) => (
-            <div key={label} className={`rounded-2xl border p-3 ${currentThemeConfig.card}`}>
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-white/60 text-slate-700">
-                <Icon className="h-4 w-4" />
-              </div>
-              <p className={`text-sm font-semibold ${currentThemeConfig.text}`}>{label}</p>
-              <p className={`mt-1 text-xs ${currentThemeConfig.subtext}`}>{detail}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className={`mb-4 rounded-2xl border p-3 ${currentThemeConfig.card}`}>
-          <div className="flex flex-wrap gap-2">
-            {supportPrompts.map((prompt) => (
-              <button
-                key={prompt}
-                onClick={() => setNewMessage(prompt)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition hover:scale-[1.02] ${isDarkMode ? 'border-slate-600 bg-slate-800/70 text-slate-200' : 'border-slate-200 bg-white/80 text-slate-700'}`}
-              >
-                {prompt}
+              <button type="button" onClick={() => router.push('/profile')} aria-label="Open profile" className={`flex h-9 w-9 items-center justify-center rounded-full border ${isDarkMode ? 'border-cyan-100/25 text-slate-100' : 'border-slate-300 text-slate-700'}`}>
+                <UserRound className="h-4 w-4" />
               </button>
-            ))}
+            </div>
           </div>
-        </div>
-
-        <div
+        </header>
+        <main id="anxiety-dashboard" className="relative z-10 mx-auto grid w-full max-w-[1800px] flex-1 grid-cols-1 lg:min-h-[calc(100dvh-3.5rem)] lg:flex-none">
+          <nav aria-label="Room navigation" className={`hidden min-h-0 overflow-y-auto border-r px-3 py-4 ${isDarkMode ? 'border-cyan-100/10 bg-[#031326]/80' : 'border-white/50 bg-[#06152a]/95 text-white'}`}>
+            <Link href="/chat-rooms" className="mb-3 flex min-h-8 items-center gap-2 px-2 text-[11px] text-slate-300 transition hover:text-white">
+              <ArrowUpRight className="h-3.5 w-3.5 rotate-[225deg]" />Back to Rooms
+            </Link>
+            <div className="mb-4 rounded-xl border border-cyan-200/15 bg-gradient-to-br from-indigo-500/20 to-cyan-500/10 p-3">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border border-cyan-100/30 bg-gradient-to-br from-cyan-300/30 to-indigo-400/30 text-xl">🏮</div>
+              <p className="text-xs font-semibold text-white">Anxiety Support</p>
+              <p className="text-xs text-cyan-100">Lantern Cove</p>
+              <p className="mt-1 text-[10px] text-slate-300">You&apos;re not alone. 💙</p>
+            </div>
+            <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">In this room</p>
+            <a href="#anxiety-chat" className="mb-1 flex min-h-9 items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-500/15 px-2 text-[11px] font-medium text-cyan-100">
+              <MessageCircle className="h-4 w-4" />Chat &amp; Community
+            </a>
+            <a href="#arrival-checkin" className={`mb-1 flex min-h-9 items-center gap-2 rounded-lg px-2 text-[11px] transition ${isDarkMode ? 'text-slate-300 hover:bg-white/5' : 'text-slate-200 hover:bg-white/10'}`}>
+              <Heart className="h-4 w-4" />Daily Check-in
+            </a>
+            <a href="#live-peers" className={`mb-1 flex min-h-9 items-center gap-2 rounded-lg px-2 text-[11px] transition ${isDarkMode ? 'text-slate-300 hover:bg-white/5' : 'text-slate-200 hover:bg-white/10'}`}>
+              <Users className="h-4 w-4" />Community
+            </a>
+            <a href="#cove-activities" className={`mb-1 flex min-h-9 items-center gap-2 rounded-lg px-2 text-[11px] transition ${isDarkMode ? 'text-slate-300 hover:bg-white/5' : 'text-slate-200 hover:bg-white/10'}`}>
+              <Waves className="h-4 w-4" />Grounding tools
+            </a>
+            <a href="#moment-share" onClick={() => inputRef.current?.focus()} className={`mb-1 flex min-h-9 items-center gap-2 rounded-lg px-2 text-[11px] transition ${isDarkMode ? 'text-slate-300 hover:bg-white/5' : 'text-slate-200 hover:bg-white/10'}`}>
+              <Heart className="h-4 w-4" />Share a moment
+            </a>
+            <Link href="/education" className={`mb-1 flex min-h-9 items-center gap-2 rounded-lg px-2 text-[11px] transition ${isDarkMode ? 'text-slate-300 hover:bg-white/5' : 'text-slate-200 hover:bg-white/10'}`}>
+              <BookOpen className="h-4 w-4" />Resources
+            </Link>
+            <a href="#room-support" className={`mb-1 flex min-h-9 items-center gap-2 rounded-lg px-2 text-[11px] transition ${isDarkMode ? 'text-slate-300 hover:bg-white/5' : 'text-slate-200 hover:bg-white/10'}`}>
+              <Sparkles className="h-4 w-4" />Support &amp; help
+            </a>
+            <div className="mt-auto rounded-2xl border border-rose-300/25 bg-gradient-to-br from-rose-500/10 to-indigo-500/10 p-3">
+              <div className="mb-2 flex items-center gap-2 text-rose-200">
+                <CircleAlert className="h-4 w-4" />
+                <span className="text-[11px] font-semibold">Need urgent help?</span>
+              </div>
+              <p className="mb-3 text-[9px] leading-relaxed text-slate-300">You deserve support from a real person.</p>
+              <Link href="/emergency" className="flex min-h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-2 text-[10px] font-semibold text-white transition hover:brightness-110">
+                <Heart className="h-3.5 w-3.5" />Crisis support
+              </Link>
+            </div>
+            <p className="mt-3 px-2 text-[9px] leading-relaxed text-slate-400">Small steps still move you forward. 💙</p>
+          </nav>
+          <section id="anxiety-dashboard-content" className="grid min-w-0 grid-cols-1 gap-3 px-3 py-2 sm:px-4 sm:py-3 lg:min-h-0 lg:grid-cols-[minmax(0,1.65fr)_15rem] lg:px-4 lg:py-3 xl:grid-cols-[minmax(0,1.85fr)_16rem]">
+            <div id="anxiety-dashboard-center" className="flex min-w-0 flex-col">
+            <div className={`relative mb-2 w-full shrink-0 overflow-hidden rounded-[1.35rem] border shadow-[0_18px_55px_rgba(15,23,42,0.12)] md:h-24 ${isDarkMode ? 'border-cyan-200/20 shadow-black/30' : 'border-white/80 shadow-slate-900/15'}`}>
+              <Image
+                src="/images/anxiety-lantern-cove-reference.png"
+                alt="Lantern Cove at sunset, the illustrated room scene from the supplied design"
+                width={832}
+                height={196}
+                priority
+                unoptimized
+                sizes="(max-width: 832px) 100vw, 832px"
+                className="block h-auto w-full object-cover md:h-full"
+              />
+            </div>
+            <div className="mb-2 hidden shrink-0 grid-cols-2 gap-2 md:grid lg:grid-cols-5">
+              <button type="button" onClick={() => setNewMessage(current => current || 'Taking a small breath: in for 4, out for 6.')} className={`flex min-h-[3.7rem] items-center gap-2 rounded-xl border px-2.5 text-left transition ${isDarkMode ? 'border-cyan-200/20 bg-[#071b30]/90 text-cyan-50 hover:border-cyan-200/40' : 'border-cyan-200 bg-white/90 text-[#173553] hover:border-cyan-400'}`}>
+                <Waves className="h-5 w-5 shrink-0 text-cyan-400" /><span><span className="block text-[10px] font-semibold">Take a deep breath</span><span className="block text-[8px] opacity-70">Reset your mind</span></span>
+              </button>
+              <button type="button" onClick={() => { setNewMessage('I am here to listen if anyone wants to talk. 💙'); inputRef.current?.focus(); }} className={`flex min-h-[3.7rem] items-center gap-2 rounded-xl border px-2.5 text-left transition ${isDarkMode ? 'border-violet-200/20 bg-[#071b30]/90 text-violet-50 hover:border-violet-200/40' : 'border-violet-200 bg-white/90 text-[#173553] hover:border-violet-400'}`}>
+                <Users className="h-5 w-5 shrink-0 text-violet-400" /><span><span className="block text-[10px] font-semibold">Connect with peers</span><span className="block text-[8px] opacity-70">Talk · listen · feel heard</span></span>
+              </button>
+              <Link href="/education" className={`flex min-h-[3.7rem] items-center gap-2 rounded-xl border px-2.5 transition ${isDarkMode ? 'border-fuchsia-200/20 bg-[#071b30]/90 text-fuchsia-50 hover:border-fuchsia-200/40' : 'border-fuchsia-200 bg-white/90 text-[#173553] hover:border-fuchsia-400'}`}>
+                <Sparkles className="h-5 w-5 shrink-0 text-fuchsia-400" /><span><span className="block text-[10px] font-semibold">Find a small story</span><span className="block text-[8px] opacity-70">Read at your own pace</span></span>
+              </Link>
+              <button type="button" onClick={() => { setNewMessage('A little moment from today: '); inputRef.current?.focus(); }} className={`flex min-h-[3.7rem] items-center gap-2 rounded-xl border px-2.5 text-left transition ${isDarkMode ? 'border-sky-200/20 bg-[#071b30]/90 text-sky-50 hover:border-sky-200/40' : 'border-sky-200 bg-white/90 text-[#173553] hover:border-sky-400'}`}>
+                <Heart className="h-5 w-5 shrink-0 text-sky-400" /><span><span className="block text-[10px] font-semibold">Post a moment</span><span className="block text-[8px] opacity-70">Thought · feeling · text</span></span>
+              </button>
+              <button type="button" onClick={() => { setNewMessage(current => current || 'Grounding game: name 5 things you can see.'); inputRef.current?.focus(); }} className={`flex min-h-[3.7rem] items-center gap-2 rounded-xl border px-2.5 text-left transition ${isDarkMode ? 'border-indigo-200/20 bg-[#071b30]/90 text-indigo-50 hover:border-indigo-200/40' : 'border-indigo-200 bg-white/90 text-[#173553] hover:border-indigo-400'}`}>
+                <Brain className="h-5 w-5 shrink-0 text-indigo-400" /><span><span className="block text-[10px] font-semibold">Grounding game</span><span className="block text-[8px] opacity-70">A gentle reset</span></span>
+              </button>
+            </div>
+            <div className="mb-2 flex shrink-0 gap-1.5 overflow-x-auto xl:hidden max-[700px]:hidden">
+              {supportPrompts.slice(0, 2).map(prompt => (
+                <button key={prompt} onClick={() => setNewMessage(prompt)} className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] ${isDarkMode ? 'border-slate-600 bg-slate-800/80 text-slate-200' : 'border-slate-200 bg-white text-slate-700'}`}>{prompt}</button>
+              ))}
+            </div>
+            <div className="grid min-w-0 grid-cols-1 gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-1 lg:grid-rows-[minmax(0,1fr)] xl:grid-cols-[11rem_minmax(0,1fr)]">
+            <aside id="cove-activities" className="hidden min-w-0 flex-col gap-2 xl:overflow-y-auto xl:flex">
+              <div className={`rounded-2xl border p-2.5 ${isDarkMode ? 'border-cyan-200/20 bg-[#04182b]/90' : 'border-slate-200 bg-white/90'}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className={`text-[11px] font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>Video stories</h2>
+                    <p className={`text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Real voices, shared gently</p>
+                  </div>
+                  <Video className="h-4 w-4 text-cyan-300" />
+                </div>
+                <div className="space-y-2">
+                  {videoStories.length === 0 ? (
+                    <div className={`rounded-xl border border-dashed p-2 text-[9px] ${isDarkMode ? 'border-slate-600 bg-slate-900/70 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                      No stories yet. Be the first to share a tiny video moment.
+                    </div>
+                  ) : (
+                    videoStories.slice(0, 2).map(story => (
+                      <div key={story.id} className={`overflow-hidden rounded-xl border ${isDarkMode ? 'border-cyan-200/10 bg-slate-900/60' : 'border-slate-200 bg-slate-50'}`}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveVideoStory(story)}
+                          aria-label={`Open video story from ${story.user_name}`}
+                          className="relative block w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        >
+                          <video
+                            src={story.video_url}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            aria-hidden="true"
+                            className="h-24 w-full bg-black object-contain"
+                          />
+                          <span className="absolute inset-x-0 bottom-0 bg-black/65 py-1 text-center text-[9px] font-medium text-white">Open full-screen</span>
+                        </button>
+                        <div className="p-2">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className={`truncate text-[9px] font-medium ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>{story.user_name}</p>
+                            {story.status === 'pending' && (
+                              <span className="shrink-0 rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[8px] font-medium text-amber-300">Awaiting review</span>
+                            )}
+                          </div>
+                          <p className={`line-clamp-2 text-[8px] ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{story.caption}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowVideoUpload(open => !open)}
+                    className={`flex w-full items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 text-[9px] font-medium ${isDarkMode ? 'border-cyan-200/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15' : 'border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100'}`}
+                  >
+                    <Plus className="h-3.5 w-3.5" />Share a video story
+                  </button>
+                  {showVideoUpload && (
+                    <div className={`rounded-xl border p-2 ${isDarkMode ? 'border-cyan-200/15 bg-[#03182d]/90' : 'border-slate-200 bg-white'}`}>
+                      <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-2 py-3 text-[9px] ${isDarkMode ? 'border-slate-600 bg-slate-900/70 text-slate-200' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                        <UploadCloud className="h-3.5 w-3.5" />
+                        <span>{videoStoryCheckingDuration ? 'Checking video length…' : selectedVideoFile ? selectedVideoFile.name : 'Choose a video (up to 3 min)'}</span>
+                        <input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={handleVideoUploadChange} className="hidden" />
+                      </label>
+                      {selectedVideoPreview && (
+                        <video src={selectedVideoPreview} controls className="mt-2 h-24 w-full rounded-lg object-cover" />
+                      )}
+                      <textarea
+                        value={videoCaption}
+                        onChange={(event) => setVideoCaption(event.target.value)}
+                        placeholder="Write a gentle caption..."
+                        className={`mt-2 w-full rounded-lg border px-2 py-1.5 text-[9px] outline-none ${isDarkMode ? 'border-slate-600 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700'}`}
+                        rows={2}
+                      />
+                      {videoStoryError && <p className="mt-2 text-[8px] text-rose-400">{videoStoryError}</p>}
+                      <button
+                        type="button"
+                        onClick={handleVideoStorySubmit}
+                        disabled={videoStorySaving || videoStoryCheckingDuration}
+                        className="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-500 px-2 py-2 text-[9px] font-medium text-white disabled:opacity-60"
+                      >
+                        {videoStorySaving ? 'Uploading...' : 'Post story'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className={`rounded-2xl border p-2.5 ${isDarkMode ? 'border-cyan-200/20 bg-[#04182b]/90' : 'border-slate-200 bg-white/90'}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className={`text-[11px] font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>Lantern Cove stories</h2>
+                    <p className={`text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>A gentle moment for today</p>
+                  </div>
+                  <BookOpen className="h-4 w-4 text-cyan-300" />
+                </div>
+                <Link href="/education" className="group relative block overflow-hidden rounded-xl border border-cyan-200/20">
+                  <Image src="/images/room-anxiety-garden.png" alt="A peaceful moonlit garden by the water" width={640} height={640} className="h-32 w-full object-cover transition duration-500 group-hover:scale-105" />
+                  <span className="absolute inset-0 bg-gradient-to-t from-[#031326]/95 via-[#031326]/15 to-transparent" />
+                  <span className="absolute bottom-2 left-2 right-2">
+                    <span className="block text-[10px] font-semibold text-white">A little space to breathe</span>
+                    <span className="block text-[9px] text-cyan-100/85">Explore grounding resources ↗</span>
+                  </span>
+                </Link>
+              </div>
+              <div className={`rounded-2xl border p-2.5 ${isDarkMode ? 'border-violet-300/20 bg-gradient-to-br from-violet-950/70 to-[#07162a]' : 'border-violet-200 bg-violet-50/90'}`}>
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className={`text-[11px] font-semibold ${isDarkMode ? 'text-white' : 'text-[#392955]'}`}>A note to keep</h2>
+                  <Heart className="h-4 w-4 text-violet-300" />
+                </div>
+                <p className={`text-[10px] leading-relaxed ${isDarkMode ? 'text-violet-100/90' : 'text-violet-950'}`}>&ldquo;You are not your thoughts. You are the one who notices them.&rdquo;</p>
+                <button type="button" onClick={() => { setNewMessage('A reminder I needed today: I am not my thoughts. 💙'); inputRef.current?.focus(); }} className={`mt-2 flex min-h-8 w-full items-center justify-center gap-1 rounded-lg border text-[9px] font-medium transition ${isDarkMode ? 'border-violet-200/20 bg-white/5 text-violet-100 hover:bg-white/10' : 'border-violet-200 bg-white text-violet-900 hover:bg-violet-100'}`}>
+                  <Heart className="h-3 w-3" />Share this reminder
+                </button>
+              </div>
+              <div className={`rounded-2xl border p-2.5 ${isDarkMode ? 'border-cyan-200/15 bg-[#04182b]/85' : 'border-cyan-200 bg-cyan-50/90'}`}>
+                <h2 className={`mb-2 text-[10px] font-semibold ${isDarkMode ? 'text-cyan-100' : 'text-cyan-950'}`}>Try a grounding step</h2>
+                <div className="space-y-1">
+                  {groundingSteps.slice(0, 3).map(({ label, detail, icon: Icon }) => (
+                    <button key={label} type="button" onClick={() => { setNewMessage(`${label}: ${detail}`); inputRef.current?.focus(); }} className={`flex min-h-8 w-full items-center gap-2 rounded-lg px-1.5 text-left transition ${isDarkMode ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-white'}`}>
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
+                      <span className="min-w-0"><span className="block text-[9px] font-medium">{label}</span><span className={`block truncate text-[8px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{detail}</span></span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </aside>
+            <div className="flex min-w-0 flex-col gap-2 lg:min-h-0">
+            <section id="anxiety-chat" className={`flex min-h-[48vh] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border p-2.5 shadow-[0_22px_60px_rgba(1,15,29,0.22)] backdrop-blur-2xl sm:p-4 lg:min-h-[26rem] ${isDarkMode ? 'border-cyan-200/20 bg-[#031326]/80' : 'border-white/80 bg-[#f8fcff]/85'}`}>
+                <div className="mb-3 flex shrink-0 items-center justify-between gap-3 px-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Users className={`h-4 w-4 shrink-0 ${isDarkMode ? 'text-cyan-300' : 'text-teal-700'}`} />
+                    <span className={`text-xs font-semibold ${isDarkMode ? 'text-cyan-100' : 'text-teal-900'}`}>Lantern Cove Chat</span>
+                    <span className={isDarkMode ? 'text-cyan-100/50' : 'text-slate-400'}>•</span>
+                    <span className={`truncate text-[10px] ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>Real people · Anonymous · Supportive</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      ref={videoStoriesButtonRef}
+                      type="button"
+                      onClick={() => setShowVideoLibrary(true)}
+                      disabled={videoStories.length === 0}
+                      aria-label={`Open video stories (${videoStories.length})`}
+                      className={`inline-flex min-h-8 items-center gap-1 rounded-full border px-2 text-[9px] font-medium disabled:cursor-not-allowed disabled:opacity-50 ${isDarkMode ? 'border-cyan-200/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20' : 'border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100'}`}
+                    >
+                      <Video className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Stories</span>
+                      <span>{videoStories.length}</span>
+                    </button>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[9px] font-medium text-emerald-300">
+                      <span className={`h-1.5 w-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                      {connectionStatus === 'connected' ? 'Live' : 'Connecting'}
+                    </span>
+                    <span className={`hidden items-center gap-1 text-[9px] sm:flex ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`} title="Anonymous accounts are pseudonyms; identities are not verified.">
+                      <ShieldCheck className="h-3.5 w-3.5" />{onlineCount} here
+                    </span>
+                  </div>
+                </div>
+                <div className="mb-2 hidden shrink-0 gap-1.5 overflow-x-auto xl:flex max-[700px]:hidden">
+                  {supportPrompts.map(prompt => (
+                    <button key={prompt} onClick={() => setNewMessage(prompt)} className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] ${isDarkMode ? 'border-slate-600 bg-slate-800/80 text-slate-200' : 'border-slate-200 bg-white text-slate-700'}`}>{prompt}</button>
+                  ))}
+                </div>
+                <div className="mb-2 flex shrink-0 gap-1.5 overflow-x-auto xl:hidden max-[700px]:hidden">
+                  {supportPrompts.slice(0, 2).map(prompt => (
+                    <button key={prompt} onClick={() => setNewMessage(prompt)} className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] ${isDarkMode ? 'border-slate-600 bg-slate-800/80 text-slate-200' : 'border-slate-200 bg-white text-slate-700'}`}>{prompt}</button>
+                  ))}
+                </div>
+                <div
+          id="anxiety-chat-messages"
           ref={messagesContainerRef}
-          className={`mb-3 h-[42dvh] min-h-64 max-h-[42rem] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border-2 p-3 shadow-inner sm:mb-4 sm:h-[26rem] sm:p-4 ${isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-white/80 border-gray-300'}`}
+          className={`mb-2 min-h-0 flex-1 touch-pan-y overflow-y-auto rounded-[1.3rem] border p-2.5 shadow-inner sm:p-5 max-[700px]:min-h-[10rem] lg:min-h-[12rem] ${isDarkMode ? 'border-cyan-200/15 bg-[#061a2c]/55' : 'border-slate-200/80 bg-white/45'}`}
         >
           {messages.length === 0 ? (
             <div className="flex h-full items-center justify-center text-center">
-              <div>
-                <Sparkles className={`mx-auto mb-3 h-10 w-10 ${currentThemeConfig.primary}`} />
-                <p className={currentThemeConfig.subtext}>Start the conversation and let the room hold space for you.</p>
+              <div className="max-w-xs">
+                <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border text-3xl shadow-[0_0_32px_rgba(34,211,238,0.2)] ${isDarkMode ? 'border-cyan-100/20 bg-cyan-200/10' : 'border-teal-100 bg-white/80'}`} aria-hidden="true">
+                  🏮
+                </div>
+                <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>A quiet cove, ready when you are.</p>
+                <p className={`mt-2 text-sm ${isDarkMode ? 'text-slate-300' : 'text-[#536a80]'}`}>Say a little, leave a lantern, or simply take a breath. People here are community members using anonymous names.</p>
               </div>
             </div>
           ) : (
@@ -1118,8 +1640,14 @@ export default function AnxietyChatPage() {
                 return (
                   <div 
                     key={msg.id} 
-                    className={`relative group ${isOwn ? "pr-11 sm:pr-12" : "pl-11 sm:pl-12"}`}
+                    className={`group relative min-h-10 ${isOwn ? 'pr-11 sm:pr-12' : 'pl-11 sm:pl-12'}`}
                   >
+                    <div
+                      aria-hidden="true"
+                      className={`absolute top-1 flex h-9 w-9 items-center justify-center rounded-full border bg-gradient-to-br text-lg shadow-md ${getAnonymousAvatar(msg.user_name).style} ${isOwn ? 'right-0' : 'left-0'}`}
+                    >
+                      {getAnonymousAvatar(msg.user_name).symbol}
+                    </div>
                     {/* Reply indicator */}
                     {parentMsg && !parentMsg.is_deleted && (
                       <div className={`flex items-center gap-2 mb-1 ${isOwn ? 'justify-end' : ''}`}>
@@ -1131,23 +1659,28 @@ export default function AnxietyChatPage() {
                     )}
                     
                     {/* Message bubble */}
-                    <div className={`max-w-[88%] break-words px-3 py-3 rounded-2xl shadow-sm sm:max-w-md sm:px-4 ${
+                    <div className={`max-w-[90%] break-words rounded-2xl border px-3 py-3 shadow-lg sm:max-w-lg sm:px-4 ${
                       msg.is_deleted 
-                        ? `${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} ${currentThemeConfig.subtext} italic`
+                        ? `${isDarkMode ? 'border-slate-600 bg-slate-700/90' : 'border-slate-300 bg-slate-100'} ${currentThemeConfig.subtext} italic`
                         : isOwn 
-                          ? `${currentThemeConfig.messageBg} text-white rounded-br-none ml-auto`
-                          : `${currentThemeConfig.otherMessageBg} text-white rounded-bl-none`
+                          ? `${isDarkMode ? 'border-cyan-300/30 bg-gradient-to-br from-[#087c91]/95 to-[#145aa0]/95 text-white' : 'border-teal-500/25 bg-gradient-to-br from-[#0e8290] to-[#256a9d] text-white'} rounded-br-none ml-auto`
+                          : `${isDarkMode ? 'border-white/10 bg-[#0a2946]/90 text-slate-100' : 'border-slate-200 bg-white/90 text-[#183653]'} rounded-bl-none`
                     }`}>
                       {/* Message header */}
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs opacity-70">{msg.user_name}</p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-xs font-semibold">{msg.user_name}</p>
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${isOwn ? 'bg-white/15 text-white/90' : isDarkMode ? 'bg-cyan-200/10 text-cyan-100/80' : 'bg-teal-50 text-teal-800'}`}>
+                            {isOwn ? 'You' : 'Peer'}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-1">
                           {msg.is_edited && !msg.is_deleted && (
                             <span className="text-xs opacity-50 italic" title={`Edited at ${msg.edited_at ? formatTime(msg.edited_at) : ''}`}>
                               (edited)
                             </span>
                           )}
-                          <span className="text-xs opacity-50">
+                          <span className="ml-2 text-[10px] opacity-60">
                             {formatTime(msg.created_at)}
                           </span>
                         </div>
@@ -1312,37 +1845,294 @@ export default function AnxietyChatPage() {
         )}
         
         {/* Message Input */}
-        <div className={`rounded-2xl border p-3 ${currentThemeConfig.card}`}>
-          <div className="mb-2 flex items-center justify-between">
-            <p className={`text-xs font-medium uppercase tracking-[0.2em] ${currentThemeConfig.subtext}`}>
-              Share what you need
-            </p>
-            <p className={`text-xs ${currentThemeConfig.subtext}`}>
-              {replyingTo ? `Replying to ${replyingTo.parentUserName}` : 'You are safe to share at your own pace'}
+        <div className={`shrink-0 rounded-[1.4rem] border p-2.5 shadow-[0_16px_50px_rgba(1,10,25,0.24)] backdrop-blur-2xl sm:p-4 ${isDarkMode ? 'border-cyan-200/20 bg-[#061629]/90' : 'border-white/80 bg-white/90'}`}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full border bg-gradient-to-br text-base ${getAnonymousAvatar(currentUser.name).style}`} aria-hidden="true">
+                {getAnonymousAvatar(currentUser.name).symbol}
+              </div>
+              <div>
+                <p className={`text-xs font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>Posting as {currentUser.name}</p>
+                <p className={`text-[10px] max-[700px]:hidden ${isDarkMode ? 'text-slate-400' : 'text-[#64798d]'}`}>Anonymous peer · your name stays pseudonymous</p>
+              </div>
+            </div>
+            <p className={`text-xs ${isDarkMode ? 'text-slate-300' : 'text-[#536a80]'}`}>
+              {replyingTo ? `Replying to ${replyingTo.parentUserName}` : 'Share only what feels okay'}
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex min-w-0 items-stretch gap-1.5 sm:gap-2">
             <input
               ref={inputRef}
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
               placeholder={`Type your message${replyingTo ? ` (replying to ${replyingTo.parentUserName})` : ''}...`}
-              className={`min-w-0 flex-1 border rounded-2xl px-4 py-3 text-base shadow-inner ${isDarkMode ? 'bg-slate-700 border-slate-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-slate-900 placeholder-gray-500'}`}
+              className={`min-h-11 min-w-0 flex-1 rounded-2xl border px-3 py-2.5 text-base shadow-inner transition focus-visible:ring-2 focus-visible:ring-cyan-400 sm:min-h-12 sm:px-4 sm:py-3 ${isDarkMode ? 'border-slate-600 bg-[#06101e] text-white placeholder-slate-400' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-500'}`}
             />
+            <button
+              type="button"
+              aria-expanded={showSignals}
+              aria-label={showSignals ? 'Hide quiet signals' : 'Add a quiet signal'}
+              onClick={() => setShowSignals(open => !open)}
+              className={`inline-flex min-h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition sm:min-h-12 sm:w-auto sm:rounded-full sm:px-4 ${isDarkMode ? 'border-slate-600 bg-slate-800 text-cyan-100 hover:border-cyan-300/50' : 'border-slate-200 bg-white text-teal-800 hover:border-teal-500/60'}`}
+            >
+              <Smile className="h-4 w-4" />
+              <span className="hidden sm:inline">Quiet signals</span>
+              {showSignals ? <ChevronDown className="h-4 w-4" /> : <Sparkle className="h-4 w-4" />}
+            </button>
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim()}
-              className={`${currentThemeConfig.button} min-h-12 w-full justify-center text-white px-6 py-3 rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg sm:w-auto sm:rounded-full`}
+              aria-label="Send message"
+              className={`flex min-h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-2 py-2.5 text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-12 sm:w-auto sm:rounded-full sm:px-6 sm:py-3 ${isDarkMode ? 'bg-gradient-to-r from-cyan-500 to-blue-500' : 'bg-gradient-to-r from-teal-600 to-cyan-700'}`}
             >
               <Send className="w-5 h-5" />
-              Send
+              <span className="hidden sm:inline">Send</span>
             </button>
           </div>
+          {showSignals && (
+            <div className={`mt-3 rounded-2xl border p-3 ${isDarkMode ? 'border-cyan-200/15 bg-[#030d19]/90' : 'border-slate-200 bg-slate-50'}`}>
+              <p className={`mb-2 text-xs ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>A tiny symbol can say what words can&apos;t. It goes into your draft; nothing is shared until you send.</p>
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+                {quietSignals.map(({ symbol, label }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    title={label}
+                    aria-label={`Add ${label} symbol`}
+                    onClick={() => addQuietSignal(symbol)}
+                    className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border text-xl transition hover:-translate-y-0.5 ${isDarkMode ? 'border-slate-700 bg-slate-800/80 text-cyan-50 hover:border-cyan-300/50 hover:bg-cyan-950/60' : 'border-slate-200 bg-white text-teal-900 hover:border-teal-400 hover:bg-teal-50'}`}
+                  >
+                    <span aria-hidden="true">{symbol}</span>
+                    <span className="max-w-full truncate px-1 text-[9px] leading-none opacity-75">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        
-      </main>
+      </section>
+      </div>
+      </div>
+      </div>
+      <aside id="room-support" className={`${showMobileSupport ? `fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10rem)] z-50 flex max-h-[68dvh] overflow-y-auto rounded-2xl border p-2 shadow-2xl ${isDarkMode ? 'border-cyan-200/20 bg-[#031326]/[0.98]' : 'border-slate-200 bg-white/[0.98]'}` : 'hidden'} min-w-0 flex-col gap-3 lg:static lg:flex lg:max-h-none lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none`}>
+                <div id="arrival-checkin" className={`rounded-2xl border p-3 shadow-xl backdrop-blur-2xl ${isDarkMode ? 'border-cyan-300/20 bg-[#061629]/85' : 'border-white/85 bg-white/90'}`}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Sparkles className={`h-4 w-4 ${isDarkMode ? 'text-emerald-300' : 'text-emerald-700'}`} />
+                    <p className={`text-xs font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>How are you feeling today?</p>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {arrivalMoods.map((mood) => (
+                      <button key={mood.label} type="button" aria-pressed={arrivalMood === mood.label} onClick={() => shareArrivalMood(mood)} className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 py-1 text-[9px] font-medium transition ${arrivalMood === mood.label ? isDarkMode ? 'border-cyan-300/70 bg-cyan-300/20 text-white' : 'border-teal-600 bg-teal-50 text-teal-900' : isDarkMode ? 'border-slate-600 bg-slate-800/80 text-slate-100 hover:border-cyan-300/50' : 'border-slate-200 bg-white text-[#344e67] hover:border-teal-500/50'}`}>
+                        <span className="text-base leading-none" aria-hidden="true">{mood.icon}</span>
+                        <span>{mood.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div id="live-peers" className={`rounded-2xl border p-3 shadow-xl backdrop-blur-2xl ${isDarkMode ? 'border-cyan-100/15 bg-[#061629]/85' : 'border-white/85 bg-white/90'}`}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div>
+                      <p className={`text-xs font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>Here with you</p>
+                      <p className={`text-[9px] ${isDarkMode ? 'text-slate-300' : 'text-[#536a80]'}`}>Anonymous peers in the room now</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[9px] font-medium text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{onlineCount} here
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    {anonymousAvatars.slice(0, Math.min(onlineCount, 5)).map((avatar, index) => (
+                      <span key={`${avatar.symbol}-${index}`} aria-hidden="true" className={`-ml-1 flex h-8 w-8 items-center justify-center rounded-full border bg-gradient-to-br text-base first:ml-0 ${avatar.style}`}>{avatar.symbol}</span>
+                    ))}
+                    {onlineCount > 5 && <span className={`-ml-1 flex h-8 min-w-8 items-center justify-center rounded-full border px-1 text-[9px] ${isDarkMode ? 'border-slate-600 bg-slate-800 text-slate-200' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>+{onlineCount - 5}</span>}
+                    {onlineCount === 0 && <span className={`text-[9px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>You can be the first to say hello.</span>}
+                  </div>
+                </div>
+                <div className={`rounded-2xl border p-3 shadow-xl backdrop-blur-2xl ${isDarkMode ? 'border-cyan-100/15 bg-[#061629]/85' : 'border-white/85 bg-white/90'}`}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="text-lg" aria-hidden="true">💠</span>
+                    <div>
+                      <p className={`text-xs font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>Community vibes</p>
+                      <p className={`text-[9px] ${isDarkMode ? 'text-slate-300' : 'text-[#536a80]'}`}>Choose a signal to add to your draft.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {coveWaysToFeel.slice(0, 6).map(({ icon, title }) => (
+                      <button key={title} type="button" title={title} onClick={() => addQuietSignal(icon)} className={`flex min-h-10 flex-col items-center justify-center rounded-lg border text-base transition ${isDarkMode ? 'border-cyan-100/10 bg-[#082139]/80 hover:border-cyan-200/40' : 'border-slate-100 bg-white/80 hover:border-teal-300'}`}>
+                        <span aria-hidden="true">{icon}</span><span className={`text-[8px] ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div id="moment-share" className={`rounded-2xl border p-3 shadow-xl backdrop-blur-2xl ${isDarkMode ? 'border-sky-200/20 bg-[#061629]/85' : 'border-white/85 bg-white/90'}`}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-200"><Heart className="h-4 w-4" /></span>
+                    <div className="min-w-0">
+                      <h2 className={`text-xs font-semibold ${isDarkMode ? 'text-white' : 'text-[#183653]'}`}>Share a moment</h2>
+                      <p className={`truncate text-[9px] ${isDarkMode ? 'text-slate-300' : 'text-[#536a80]'}`}>A thought, a win, a little thing...</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => { setNewMessage('A small moment I want to share: '); inputRef.current?.focus(); }} className="flex min-h-9 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-3 text-[10px] font-semibold text-white transition hover:brightness-110">
+                    Write a moment <ArrowUpRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className={`rounded-2xl border p-3 shadow-xl backdrop-blur-2xl ${isDarkMode ? 'border-amber-300/25 bg-gradient-to-br from-amber-950/40 to-[#061629]/90' : 'border-amber-200 bg-amber-50/90'}`}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-300/10 text-amber-300">🏮</span>
+                    <div>
+                      <h2 className={`text-xs font-semibold ${isDarkMode ? 'text-white' : 'text-[#3b3022]'}`}>Need to talk right now?</h2>
+                      <p className={`text-[9px] ${isDarkMode ? 'text-slate-300' : 'text-[#6b5a42]'}`}>Someone is here for you. You&apos;re not alone.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Link href="/emergency" className="flex min-h-9 items-center justify-center gap-1 rounded-full bg-rose-500 px-2 text-[9px] font-semibold text-white transition hover:bg-rose-400">
+                      <CircleAlert className="h-3.5 w-3.5" />Emergency help
+                    </Link>
+                    <button type="button" onClick={() => { inputRef.current?.focus(); document.getElementById('anxiety-chat')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className="flex min-h-9 items-center justify-center gap-1 rounded-full bg-cyan-500 px-2 text-[9px] font-semibold text-white transition hover:bg-cyan-400">
+                      <MessageCircle className="h-3.5 w-3.5" />Talk now
+                    </button>
+                  </div>
+                </div>
+              </aside>
+          </section>
+        </main>
+        <nav aria-label="Mobile navigation" className={`grid shrink-0 grid-cols-4 border-t px-2 pt-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] xl:hidden ${isDarkMode ? 'border-cyan-100/15 bg-[#031326]/95' : 'border-white/70 bg-[#f8fcff]/95'}`}>
+          <Link href="/" aria-label="Home" className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[10px] ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+            <House className="h-4 w-4" />Home
+          </Link>
+          <Link href="/chat-rooms" aria-label="Chat rooms" className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[10px] ${isDarkMode ? 'text-cyan-200' : 'text-teal-800'}`}>
+            <MessageCircle className="h-4 w-4" />Rooms
+          </Link>
+          <button type="button" aria-expanded={showMobileSupport} onClick={() => setShowMobileSupport(open => !open)} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[10px] ${showMobileSupport ? isDarkMode ? 'text-cyan-200' : 'text-teal-800' : isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+            <Sparkles className="h-4 w-4" />Support
+          </button>
+          <Link href="/profile" aria-label="Profile" className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[10px] ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+            <UserRound className="h-4 w-4" />Profile
+          </Link>
+        </nav>
+        {videoModalOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="video-stories-dialog-title"
+            onKeyDown={event => {
+              if (event.key !== 'Tab') return;
+              const focusableElements = event.currentTarget.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), video[controls], a[href], input:not([disabled]), textarea:not([disabled])'
+              );
+              if (focusableElements.length === 0) return;
+              const firstElement = focusableElements[0];
+              const lastElement = focusableElements[focusableElements.length - 1];
+              if (event.shiftKey && document.activeElement === firstElement) {
+                event.preventDefault();
+                lastElement.focus();
+              } else if (!event.shiftKey && document.activeElement === lastElement) {
+                event.preventDefault();
+                firstElement.focus();
+              }
+            }}
+            className="fixed inset-0 z-[100] flex flex-col overflow-y-auto bg-[#020914] text-white"
+          >
+            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-4 py-3 sm:px-8">
+              <div>
+                <h2 id="video-stories-dialog-title" className="text-lg font-semibold">
+                  {activeVideoStory ? activeVideoStory.user_name : 'Video Stories'}
+                </h2>
+                <p className="text-xs text-slate-300">
+                  {activeVideoStory ? 'One story at a time · No autoplay' : 'Choose a story to watch · No endless feed'}
+                </p>
+              </div>
+              <button
+                ref={videoModalCloseButtonRef}
+                type="button"
+                onClick={() => {
+                  setShowVideoLibrary(false);
+                  setActiveVideoStory(null);
+                }}
+                aria-label="Close video stories and return to chat"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-white/20 text-2xl leading-none hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+
+            {activeVideoStory ? (
+              <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 p-4 sm:p-8">
+                <video
+                  key={activeVideoStory.id}
+                  src={activeVideoStory.video_url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label={`Video story from ${activeVideoStory.user_name}`}
+                  className="max-h-[70dvh] w-full rounded-xl bg-black object-contain sm:max-h-[76dvh]"
+                />
+                <div className="w-full max-w-3xl">
+                  <p className="text-base leading-relaxed text-white">{activeVideoStory.caption}</p>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Shared by {activeVideoStory.user_name}
+                    {activeVideoStory.status === 'pending' ? ' · Awaiting review' : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveVideoStory(null);
+                    setShowVideoLibrary(true);
+                    window.requestAnimationFrame(() => videoModalCloseButtonRef.current?.focus());
+                  }}
+                  className="min-h-11 rounded-full border border-white/25 px-5 text-sm font-medium hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                >
+                  Browse stories
+                </button>
+              </div>
+            ) : (
+              <div className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-8">
+                <p className="mb-5 text-sm text-slate-300">
+                  New uploads are limited to 3 minutes. Choose what you want to watch; nothing starts automatically.
+                </p>
+                {videoStories.length === 0 ? (
+                  <p className="rounded-xl border border-white/15 p-6 text-center text-slate-300">
+                    There are no video stories available right now.
+                  </p>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {videoStories.map(story => (
+                      <button
+                        key={story.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveVideoStory(story);
+                          setShowVideoLibrary(false);
+                        }}
+                        className="overflow-hidden rounded-xl border border-white/15 bg-white/5 text-left transition hover:border-cyan-200/50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                      >
+                        <video
+                          src={story.video_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          aria-hidden="true"
+                          className="aspect-video w-full bg-black object-contain"
+                        />
+                        <span className="block p-3">
+                          <span className="block font-medium text-white">{story.user_name}</span>
+                          <span className="mt-1 line-clamp-2 block text-sm text-slate-300">{story.caption}</span>
+                          {story.status === 'pending' && (
+                            <span className="mt-2 block text-xs text-amber-300">Awaiting review</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
