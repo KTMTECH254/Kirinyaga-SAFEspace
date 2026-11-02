@@ -26,6 +26,7 @@ import {
   Cross,
   Sun,
   Moon,
+  Video,
 } from 'lucide-react';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -146,6 +147,7 @@ function AppLayout({
                   <>
                     <NavLink href="/" icon={<Home size={18} />} dark={isDark}>Home</NavLink>
                     <NavLink href="/chat-rooms" icon={<MessageCircle size={18} />} dark={isDark}>Chatrooms</NavLink>
+                    <NavLink href="/chat/anxiety/stories" icon={<Video size={18} />} dark={isDark}>Stories</NavLink>
                     <NavLink href="/education" icon={<BookOpen size={18} />} dark={isDark}>Resources</NavLink>
                     <NavLink href="/professionals" icon={<Users size={18} />} dark={isDark}>Professionals</NavLink>
                     <NavLink href="/about" icon={<Heart size={18} />} dark={isDark}>About</NavLink>
@@ -165,6 +167,7 @@ function AppLayout({
                     {isLoggedIn && (
                       <>
                         <NavLink href="/chat-rooms" icon={<MessageCircle size={18} />} dark={isDark}>Chat Rooms</NavLink>
+                        <NavLink href="/chat/anxiety/stories" icon={<Video size={18} />} dark={isDark}>Stories</NavLink>
                         <NavLink href="/education" icon={<BookOpen size={18} />} dark={isDark}>Resources</NavLink>
                         <NavLink href="/progress" icon={<BarChart3 size={18} />} dark={isDark}>Progress</NavLink>
                         <NavLink href="/professionals" icon={<Users size={18} />} dark={isDark}>Professionals</NavLink>
@@ -209,6 +212,9 @@ function AppLayout({
                       <MobileNavLink href="/chat-rooms" icon={<MessageCircle size={20} />} onClick={() => setMenuOpen(false)} dark={isDark}>
                         Chatrooms
                       </MobileNavLink>
+                      <MobileNavLink href="/chat/anxiety/stories" icon={<Video size={20} />} onClick={() => setMenuOpen(false)} dark={isDark}>
+                        Stories
+                      </MobileNavLink>
                       <MobileNavLink href="/education" icon={<BookOpen size={20} />} onClick={() => setMenuOpen(false)} dark={isDark}>
                         Resources
                       </MobileNavLink>
@@ -245,6 +251,9 @@ function AppLayout({
                         <>
                           <MobileNavLink href="/chat-rooms" icon={<MessageCircle size={20} />} onClick={() => setMenuOpen(false)} dark={isDark}>
                             Chat Rooms
+                          </MobileNavLink>
+                          <MobileNavLink href="/chat/anxiety/stories" icon={<Video size={20} />} onClick={() => setMenuOpen(false)} dark={isDark}>
+                            Stories
                           </MobileNavLink>
                           <MobileNavLink href="/education" icon={<BookOpen size={20} />} onClick={() => setMenuOpen(false)} dark={isDark}>
                             Resources

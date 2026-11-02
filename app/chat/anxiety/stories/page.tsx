@@ -7,6 +7,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   BookOpen,
+  ChevronDown,
   Heart,
   MessageCircle,
   Moon,
@@ -78,7 +79,9 @@ export default function AnxietyStoriesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const playerRef = useRef<HTMLElement | null>(null);
+  const storiesScrollRef = useRef<HTMLDivElement | null>(null);
+  const storySlideRefs = useRef(new Map<string, HTMLElement>());
+  const storyVideoRefs = useRef(new Map<string, HTMLVideoElement>());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -86,6 +89,7 @@ export default function AnxietyStoriesPage() {
     void fetchStoryPage(0, controller.signal)
       .then(result => {
         setStories(result.stories);
+        setSelectedStoryId(result.stories[0]?.id ?? null);
         setPage(result.page);
         setHasMore(result.hasMore);
         setError(null);
@@ -103,12 +107,32 @@ export default function AnxietyStoriesPage() {
   }, []);
 
   const selectedStory = stories.find(story => story.id === selectedStoryId) ?? stories[0] ?? null;
+  const selectedStoryIndex = selectedStory ? stories.findIndex(story => story.id === selectedStory.id) : -1;
 
-  const chooseStory = (story: VideoStory) => {
-    setSelectedStoryId(story.id);
-    setFinishedStoryId(null);
-    playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  useEffect(() => {
+    const root = storiesScrollRef.current;
+    if (!root || stories.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        const mostVisibleStory = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const storyId = mostVisibleStory?.target.getAttribute('data-story-id');
+        if (storyId) {
+          storyVideoRefs.current.forEach((video, id) => {
+            if (id !== storyId) video.pause();
+          });
+          setSelectedStoryId(storyId);
+          setFinishedStoryId(current => current && current !== storyId ? null : current);
+        }
+      },
+      { root, threshold: [0.6, 0.75, 0.9] }
+    );
+
+    storySlideRefs.current.forEach(slide => observer.observe(slide));
+    return () => observer.disconnect();
+  }, [stories]);
 
   const loadMoreStories = async () => {
     setLoadingMore(true);
@@ -213,106 +237,99 @@ export default function AnxietyStoriesPage() {
           </section>
         ) : (
           <>
-            <section
-              ref={playerRef}
-              aria-label="Selected community story"
-              className={`mx-auto grid max-w-4xl scroll-mt-4 gap-5 rounded-3xl border p-4 shadow-[0_20px_70px_rgba(27,65,84,0.10)] sm:grid-cols-[minmax(0,1fr)_minmax(15rem,0.8fr)] sm:items-center sm:gap-8 sm:p-7 ${isDarkMode ? 'border-white/10 bg-white/5 shadow-black/20' : 'border-white bg-white/75'}`}
-            >
-              {selectedStory && (
-                <>
-                  <div className="flex justify-center">
-                    <div className="h-[min(62dvh,34rem)] w-[min(78vw,19.125rem)] overflow-hidden rounded-2xl bg-[#06131c] shadow-lg ring-1 ring-black/10">
-                      <video
-                        key={selectedStory.id}
-                        src={selectedStory.video_url}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        aria-label={`Community video story shared by ${selectedStory.user_name}`}
-                        onEnded={() => setFinishedStoryId(selectedStory.id)}
-                        onPlay={() => setFinishedStoryId(null)}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 py-2 sm:py-0">
-                    <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${isDarkMode ? 'bg-teal-300/10 text-teal-100' : 'bg-teal-50 text-teal-900'}`}>
-                      <Video className="h-3.5 w-3.5" />
-                      Community story
-                    </p>
-                    <h2 className={`mt-4 text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>{selectedStory.user_name}</h2>
-                    <p className={`mt-3 whitespace-pre-wrap break-words text-sm leading-6 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                      {selectedStory.caption}
-                    </p>
-                    <p className={`mt-5 border-l-2 border-teal-300 pl-3 text-sm leading-6 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      Take this at your own pace. You can pause, stop, or leave whenever you need.
-                    </p>
-
-                    {finishedStoryId === selectedStory.id && (
-                      <div role="status" className={`mt-5 rounded-2xl border p-4 ${isDarkMode ? 'border-cyan-100/10 bg-cyan-300/10' : 'border-cyan-900/10 bg-cyan-50/80'}`}>
-                        <p className={`text-sm font-semibold ${isDarkMode ? 'text-cyan-100' : 'text-cyan-950'}`}>The story has ended.</p>
-                        <p className={`mt-1 text-sm leading-5 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                          Before choosing another, take a breath and notice what you need right now.
-                        </p>
-                        <Link
-                          href="/chat/anxiety"
-                          className={`mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'border-teal-200/20 bg-white/5 text-teal-100 hover:bg-white/10 focus-visible:outline-teal-300' : 'border-teal-800/20 bg-white text-teal-900 hover:bg-teal-50 focus-visible:outline-teal-800'}`}
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                          Return to the conversation
-                        </Link>
-                      </div>
-                    )}
-
-                    <p className={`mt-5 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Stories are moderated before they appear here. They are community experiences, not professional advice.
-                    </p>
-                  </div>
-                </>
-              )}
-            </section>
-
-            <section id="story-shelf" aria-labelledby="story-shelf-title" className="mx-auto mt-10 max-w-5xl scroll-mt-6">
-              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <section aria-labelledby="story-shelf-title" className="mx-auto mt-8 max-w-5xl">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 id="story-shelf-title" className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>Choose a story</h2>
+                  <h2 id="story-shelf-title" className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>Stories</h2>
                   <p className={`mt-1 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {hasMore
-                      ? `${stories.length} stories loaded. More are available when you choose to load them.`
-                      : `${stories.length} ${stories.length === 1 ? 'story' : 'stories'} available to browse.`}
+                    Scroll inside the viewer to move to the next story. Videos only play when you press play.
                   </p>
                 </div>
-                <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Each video is up to 3 minutes</p>
+                <p aria-live="polite" className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {selectedStoryIndex >= 0 ? `Story ${selectedStoryIndex + 1} of ${stories.length}` : `${stories.length} stories loaded`}
+                </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {stories.map((story, index) => {
-                  const isSelected = story.id === selectedStory?.id;
-                  return (
-                    <button
-                      key={story.id}
-                      type="button"
-                      onClick={() => chooseStory(story)}
-                      aria-pressed={isSelected}
-                      className={`flex min-h-28 items-start gap-3 rounded-2xl border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800 ${
-                        isSelected
-                          ? isDarkMode ? 'border-teal-300/60 bg-teal-300/10 shadow-sm' : 'border-teal-700 bg-teal-50 shadow-sm'
-                          : isDarkMode ? 'border-white/10 bg-white/5 hover:border-teal-200/30 hover:bg-white/10' : 'border-white bg-white/75 hover:border-teal-300 hover:bg-white'
-                      }`}
-                    >
-                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isSelected ? 'bg-teal-800 text-white' : isDarkMode ? 'bg-cyan-300/10 text-teal-100' : 'bg-cyan-50 text-teal-800'}`}>
-                        <Video className="h-5 w-5" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className={`block text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Story {index + 1}</span>
-                        <span className={`mt-1 block truncate text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>{story.user_name}</span>
-                        <span className={`mt-1 line-clamp-2 block text-xs leading-5 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{story.caption}</span>
-                      </span>
-                    </button>
-                  );
-                })}
+              <div
+                ref={storiesScrollRef}
+                tabIndex={0}
+                role="region"
+                aria-label="Scrollable community video stories"
+                className={`h-[min(84dvh,60rem)] min-h-[28rem] snap-y snap-mandatory overflow-y-auto overscroll-y-contain rounded-3xl border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${isDarkMode ? 'border-white/10 bg-white/[0.03] focus-visible:outline-teal-300' : 'border-white bg-white/50 focus-visible:outline-teal-700'}`}
+              >
+                {stories.map((story, index) => (
+                  <article
+                    key={story.id}
+                    ref={element => {
+                      if (element) storySlideRefs.current.set(story.id, element);
+                      else storySlideRefs.current.delete(story.id);
+                    }}
+                    data-story-id={story.id}
+                    aria-label={`Story ${index + 1} of ${stories.length}`}
+                    className={`h-full min-h-full snap-start snap-always overflow-y-auto p-4 sm:p-6 ${index > 0 ? `border-t ${isDarkMode ? 'border-white/10' : 'border-cyan-950/10'}` : ''}`}
+                  >
+                    <div className="mx-auto grid min-h-full max-w-4xl items-center gap-5 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] sm:gap-8">
+                      <div className="flex justify-center">
+                        <div className="h-[min(62dvh,46rem)] max-sm:h-[min(48dvh,30rem)] aspect-[9/16] overflow-hidden rounded-2xl bg-[#06131c] shadow-lg ring-1 ring-black/10">
+                          <video
+                            ref={element => {
+                              if (element) storyVideoRefs.current.set(story.id, element);
+                              else storyVideoRefs.current.delete(story.id);
+                            }}
+                            src={story.video_url}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            aria-label={`Community video story shared by ${story.user_name}`}
+                            onEnded={() => setFinishedStoryId(story.id)}
+                            onPlay={() => setFinishedStoryId(null)}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 py-2 sm:py-0">
+                        <p className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${isDarkMode ? 'bg-teal-300/10 text-teal-100' : 'bg-teal-50 text-teal-900'}`}>
+                          <Video className="h-3.5 w-3.5" />
+                          Story {index + 1}
+                        </p>
+                        <h3 className={`mt-4 text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-[#16364b]'}`}>{story.user_name}</h3>
+                        <p className={`mt-3 whitespace-pre-wrap break-words text-sm leading-6 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                          {story.caption}
+                        </p>
+                        <p className={`mt-5 border-l-2 border-teal-300 pl-3 text-sm leading-6 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                          Take this at your own pace. You can pause, stop, or leave whenever you need.
+                        </p>
+
+                        {finishedStoryId === story.id && (
+                          <div role="status" className={`mt-5 rounded-2xl border p-4 ${isDarkMode ? 'border-cyan-100/10 bg-cyan-300/10' : 'border-cyan-900/10 bg-cyan-50/80'}`}>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-cyan-100' : 'text-cyan-950'}`}>The story has ended.</p>
+                            <p className={`mt-1 text-sm leading-5 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                              Before choosing another, take a breath and notice what you need right now.
+                            </p>
+                            <Link
+                              href="/chat/anxiety"
+                              className={`mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 ${isDarkMode ? 'border-teal-200/20 bg-white/5 text-teal-100 hover:bg-white/10 focus-visible:outline-teal-300' : 'border-teal-800/20 bg-white text-teal-900 hover:bg-teal-50 focus-visible:outline-teal-800'}`}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              Return to the conversation
+                            </Link>
+                          </div>
+                        )}
+
+                        <p className={`mt-5 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          Stories are moderated before they appear here. They are community experiences, not professional advice.
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
               </div>
+
+              <p className={`mt-2 flex items-center justify-center gap-1 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                <ChevronDown className="h-4 w-4" />
+                Scroll for the next story
+              </p>
 
               {hasMore && (
                 <div className="mt-5 text-center">
