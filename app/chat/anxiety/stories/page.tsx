@@ -8,11 +8,14 @@ import {
   ArrowUpRight,
   BookOpen,
   ChevronDown,
+  Eye,
   Heart,
   MessageCircle,
   Moon,
   RefreshCw,
   Sun,
+  ThumbsDown,
+  ThumbsUp,
   Video,
   Waves
 } from 'lucide-react';
@@ -23,6 +26,10 @@ type VideoStory = {
   caption: string;
   created_at: string;
   video_url: string;
+  view_count: number;
+  upvotes: number;
+  downvotes: number;
+  viewer_vote: -1 | 1 | null;
 };
 
 type StoryPage = {
@@ -30,6 +37,18 @@ type StoryPage = {
   page: number;
   hasMore: boolean;
 };
+
+type StoryInteraction = {
+  story_id: string;
+  view_count: number;
+  upvotes: number;
+  downvotes: number;
+  viewer_vote: -1 | 1 | null;
+};
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
 
 function isApprovedStory(value: unknown): value is VideoStory {
   if (!value || typeof value !== 'object') return false;
@@ -39,7 +58,21 @@ function isApprovedStory(value: unknown): value is VideoStory {
     && typeof story.user_name === 'string'
     && typeof story.caption === 'string'
     && typeof story.created_at === 'string'
-    && typeof story.video_url === 'string';
+    && typeof story.video_url === 'string'
+    && isNonNegativeInteger(story.view_count)
+    && isNonNegativeInteger(story.upvotes)
+    && isNonNegativeInteger(story.downvotes)
+    && (story.viewer_vote === null || story.viewer_vote === -1 || story.viewer_vote === 1);
+}
+
+function isStoryInteraction(value: unknown): value is StoryInteraction {
+  if (!value || typeof value !== 'object') return false;
+  const interaction = value as Record<string, unknown>;
+  return typeof interaction.story_id === 'string'
+    && isNonNegativeInteger(interaction.view_count)
+    && isNonNegativeInteger(interaction.upvotes)
+    && isNonNegativeInteger(interaction.downvotes)
+    && (interaction.viewer_vote === null || interaction.viewer_vote === -1 || interaction.viewer_vote === 1);
 }
 
 async function fetchStoryPage(page: number, signal?: AbortSignal): Promise<StoryPage> {
@@ -57,15 +90,50 @@ async function fetchStoryPage(page: number, signal?: AbortSignal): Promise<Story
     throw new Error(message);
   }
 
-  if (!payload || typeof payload !== 'object' || !('stories' in payload) || !Array.isArray(payload.stories)) {
+  if (
+    !payload
+    || typeof payload !== 'object'
+    || !('stories' in payload)
+    || !Array.isArray(payload.stories)
+    || !payload.stories.every(isApprovedStory)
+  ) {
     throw new Error('The video stories response was not in the expected format.');
   }
 
   return {
-    stories: payload.stories.filter(isApprovedStory),
+    stories: payload.stories,
     page: 'page' in payload && typeof payload.page === 'number' ? payload.page : page,
     hasMore: 'hasMore' in payload && payload.hasMore === true
   };
+}
+
+async function saveStoryInteraction(
+  action: 'view' | 'vote',
+  storyId: string,
+  vote?: -1 | 0 | 1
+): Promise<StoryInteraction> {
+  const response = await fetch('/api/chat/anxiety/video-stories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    body: JSON.stringify({ action, id: storyId, ...(action === 'vote' ? { vote } : {}) })
+  });
+  const payload: unknown = await response.json();
+
+  if (!response.ok) {
+    const message = payload && typeof payload === 'object' && 'error' in payload
+      && typeof payload.error === 'string'
+      ? payload.error
+      : 'Your story interaction could not be saved.';
+    throw new Error(message);
+  }
+  if (!payload || typeof payload !== 'object' || !('interaction' in payload) || !isStoryInteraction(payload.interaction)) {
+    throw new Error('The story interaction response was not in the expected format.');
+  }
+  if (payload.interaction.story_id !== storyId) {
+    throw new Error('The story interaction response did not match the requested story.');
+  }
+  return payload.interaction;
 }
 
 export default function AnxietyStoriesPage() {
@@ -78,10 +146,19 @@ export default function AnxietyStoriesPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [votingStoryId, setVotingStoryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const storiesScrollRef = useRef<HTMLDivElement | null>(null);
   const storySlideRefs = useRef(new Map<string, HTMLElement>());
   const storyVideoRefs = useRef(new Map<string, HTMLVideoElement>());
+  const recordedViewsRef = useRef(new Set<string>());
+
+  const applyStoryInteraction = (interaction: StoryInteraction) => {
+    const { story_id: storyId, ...counts } = interaction;
+    setStories(current => current.map(story => story.id === storyId
+      ? { ...story, ...counts }
+      : story));
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -125,6 +202,15 @@ export default function AnxietyStoriesPage() {
           });
           setSelectedStoryId(storyId);
           setFinishedStoryId(current => current && current !== storyId ? null : current);
+          if (!recordedViewsRef.current.has(storyId)) {
+            recordedViewsRef.current.add(storyId);
+            void saveStoryInteraction('view', storyId)
+              .then(applyStoryInteraction)
+              .catch(loadError => {
+                recordedViewsRef.current.delete(storyId);
+                setError(loadError instanceof Error ? loadError.message : 'The story view could not be recorded.');
+              });
+          }
         }
       },
       { root, threshold: [0.6, 0.75, 0.9] }
@@ -133,6 +219,23 @@ export default function AnxietyStoriesPage() {
     storySlideRefs.current.forEach(slide => observer.observe(slide));
     return () => observer.disconnect();
   }, [stories]);
+
+  const voteForStory = async (story: VideoStory, vote: -1 | 1) => {
+    setVotingStoryId(story.id);
+    setError(null);
+    try {
+      const interaction = await saveStoryInteraction(
+        'vote',
+        story.id,
+        story.viewer_vote === vote ? 0 : vote
+      );
+      applyStoryInteraction(interaction);
+    } catch (voteError) {
+      setError(voteError instanceof Error ? voteError.message : 'Your vote could not be saved.');
+    } finally {
+      setVotingStoryId(null);
+    }
+  };
 
   const loadMoreStories = async () => {
     setLoadingMore(true);
@@ -300,6 +403,39 @@ export default function AnxietyStoriesPage() {
                         <p className={`mt-5 border-l-2 border-teal-300 pl-3 text-sm leading-6 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                           Take this at your own pace. You can pause, stop, or leave whenever you need.
                         </p>
+
+                        <div className="mt-5 flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-200 bg-white/80 text-slate-700'}`}>
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                            <span>{story.view_count.toLocaleString()} {story.view_count === 1 ? 'view' : 'views'}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void voteForStory(story, 1)}
+                            disabled={votingStoryId === story.id}
+                            aria-label={`Upvote story, ${story.upvotes} ${story.upvotes === 1 ? 'upvote' : 'upvotes'}`}
+                            aria-pressed={story.viewer_vote === 1}
+                            className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm font-medium transition disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 ${story.viewer_vote === 1
+                              ? isDarkMode ? 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100 focus-visible:outline-emerald-300' : 'border-emerald-600 bg-emerald-50 text-emerald-900 focus-visible:outline-emerald-700'
+                              : isDarkMode ? 'border-white/10 text-slate-200 hover:bg-white/10 focus-visible:outline-teal-300' : 'border-slate-200 bg-white/80 text-slate-700 hover:bg-emerald-50 focus-visible:outline-teal-700'}`}
+                          >
+                            <ThumbsUp className="h-4 w-4" aria-hidden="true" />
+                            Upvote <span>{story.upvotes.toLocaleString()}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void voteForStory(story, -1)}
+                            disabled={votingStoryId === story.id}
+                            aria-label={`Downvote story, ${story.downvotes} ${story.downvotes === 1 ? 'downvote' : 'downvotes'}`}
+                            aria-pressed={story.viewer_vote === -1}
+                            className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-sm font-medium transition disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 ${story.viewer_vote === -1
+                              ? isDarkMode ? 'border-rose-300/50 bg-rose-300/15 text-rose-100 focus-visible:outline-rose-300' : 'border-rose-600 bg-rose-50 text-rose-900 focus-visible:outline-rose-700'
+                              : isDarkMode ? 'border-white/10 text-slate-200 hover:bg-white/10 focus-visible:outline-teal-300' : 'border-slate-200 bg-white/80 text-slate-700 hover:bg-rose-50 focus-visible:outline-teal-700'}`}
+                          >
+                            <ThumbsDown className="h-4 w-4" aria-hidden="true" />
+                            Downvote <span>{story.downvotes.toLocaleString()}</span>
+                          </button>
+                        </div>
 
                         {finishedStoryId === story.id && (
                           <div role="status" className={`mt-5 rounded-2xl border p-4 ${isDarkMode ? 'border-cyan-100/10 bg-cyan-300/10' : 'border-cyan-900/10 bg-cyan-50/80'}`}>

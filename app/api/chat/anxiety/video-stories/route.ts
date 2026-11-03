@@ -18,6 +18,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+type VideoStoryEngagement = {
+  story_id: string;
+  view_count: number;
+  upvotes: number;
+  downvotes: number;
+  viewer_vote: -1 | 1 | null;
+};
+
+function parseVideoStoryEngagement(value: unknown): VideoStoryEngagement | null {
+  if (!isRecord(value)) return null;
+  const { story_id, view_count, upvotes, downvotes, viewer_vote } = value;
+  if (
+    typeof story_id !== 'string'
+    || typeof view_count !== 'number' || !Number.isSafeInteger(view_count) || view_count < 0
+    || typeof upvotes !== 'number' || !Number.isSafeInteger(upvotes) || upvotes < 0
+    || typeof downvotes !== 'number' || !Number.isSafeInteger(downvotes) || downvotes < 0
+    || (viewer_vote !== null && viewer_vote !== 1 && viewer_vote !== -1)
+  ) {
+    return null;
+  }
+  return { story_id, view_count, upvotes, downvotes, viewer_vote };
+}
+
 function isMissingStoriesTable(error: { code?: string } | null) {
   return error?.code === '42P01' || error?.code === 'PGRST205';
 }
@@ -25,6 +48,20 @@ function isMissingStoriesTable(error: { code?: string } | null) {
 function missingStoriesTableResponse() {
   return NextResponse.json(
     { error: 'Video Stories database setup is incomplete. Apply the anxiety video stories migration in Supabase, then try again.' },
+    { status: 503 }
+  );
+}
+
+function isMissingEngagementSchema(error: { code?: string } | null) {
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || error?.code === '42883'
+    || error?.code === 'PGRST202';
+}
+
+function missingEngagementSchemaResponse() {
+  return NextResponse.json(
+    { error: 'Video story engagement setup is incomplete. Apply the anxiety video story engagement migration in Supabase, then try again.' },
     { status: 503 }
   );
 }
@@ -67,9 +104,14 @@ function getVideoStoryOwnerId(request: Request) {
 export async function GET(request: Request) {
   try {
     const isAdmin = await hasAdminSession(request).catch(() => false);
-    const ownerId = getVideoStoryOwnerId(request);
     const requestUrl = new URL(request.url);
     const isLibraryRequest = requestUrl.searchParams.get('view') === 'library';
+    const authenticatedOwnerId = getAuthProfileId(request);
+    const existingGuestOwnerId = authenticatedOwnerId ? null : getGuestOwnerId(request);
+    const newGuestOwnerId = isLibraryRequest && !authenticatedOwnerId && !existingGuestOwnerId
+      ? crypto.randomUUID()
+      : null;
+    const ownerId = authenticatedOwnerId || existingGuestOwnerId || newGuestOwnerId;
     const requestedPage = Number.parseInt(requestUrl.searchParams.get('page') ?? '0', 10);
     const pageNumber = Number.isSafeInteger(requestedPage) ? Math.min(Math.max(requestedPage, 0), 10000) : 0;
     const pageSize = 24;
@@ -178,13 +220,73 @@ export async function GET(request: Request) {
       })
     );
 
-    return NextResponse.json(
+    const engagementByStoryId = new Map<string, {
+      view_count: number;
+      upvotes: number;
+      downvotes: number;
+      viewer_vote: -1 | 1 | null;
+    }>();
+    if (isLibraryRequest && stories.length > 0) {
+      const { data: engagement, error: engagementError } = await supabaseAdmin.rpc(
+        'get_anxiety_video_story_engagement',
+        {
+          p_story_ids: stories.map(story => story.id),
+          p_viewer_id: ownerId
+        }
+      );
+      if (engagementError) {
+        console.error('Unable to load Anxiety video story engagement:', engagementError);
+        if (isMissingEngagementSchema(engagementError)) {
+          return missingEngagementSchemaResponse();
+        }
+        return NextResponse.json({ error: 'Video story engagement could not be loaded.' }, { status: 500 });
+      }
+
+      const engagementRows: unknown = engagement;
+      if (!Array.isArray(engagementRows)) {
+        console.error('Anxiety video story engagement returned an invalid response.');
+        return NextResponse.json({ error: 'Video story engagement could not be loaded.' }, { status: 500 });
+      }
+      for (const row of engagementRows) {
+        const parsed = parseVideoStoryEngagement(row);
+        if (!parsed) {
+          console.error('Anxiety video story engagement returned an invalid row.');
+          return NextResponse.json({ error: 'Video story engagement could not be loaded.' }, { status: 500 });
+        }
+        engagementByStoryId.set(parsed.story_id, {
+          view_count: parsed.view_count,
+          upvotes: parsed.upvotes,
+          downvotes: parsed.downvotes,
+          viewer_vote: parsed.viewer_vote
+        });
+      }
+      if (engagementByStoryId.size !== stories.length) {
+        console.error('Anxiety video story engagement did not include every approved story.');
+        return NextResponse.json({ error: 'Video story engagement could not be loaded.' }, { status: 500 });
+      }
+    }
+
+    const response = NextResponse.json(
       {
-        stories: storyList.filter(Boolean),
+        stories: storyList.filter((story): story is NonNullable<typeof story> => story !== null).map(story => ({
+          ...story,
+          ...(isLibraryRequest ? engagementByStoryId.get(story.id) : {})
+        })),
         ...(isLibraryRequest ? { page: pageNumber, pageSize, hasMore } : {})
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
+    if (newGuestOwnerId) {
+      const signature = signGuestOwnerId(newGuestOwnerId);
+      response.cookies.set(GUEST_OWNER_COOKIE, `${newGuestOwnerId}.${signature}`, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30
+      });
+    }
+    return response;
   } catch (error) {
     console.error('Anxiety video stories GET failed:', error);
     return NextResponse.json({ error: 'Video stories could not be loaded.' }, { status: 500 });
@@ -201,6 +303,89 @@ export async function POST(request: Request) {
 
   if (!isRecord(body)) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+  }
+
+  if (body.action === 'view' || body.action === 'vote') {
+    const storyId = typeof body.id === 'string' ? body.id.trim() : '';
+    const viewerId = getVideoStoryOwnerId(request);
+    if (!UUID_PATTERN.test(storyId)) {
+      return NextResponse.json({ error: 'Invalid video story ID.' }, { status: 400 });
+    }
+    if (!viewerId) {
+      return NextResponse.json({ error: 'Your viewing session could not be verified. Reload the story page and try again.' }, { status: 401 });
+    }
+
+    const { data: story, error: storyError } = await supabaseAdmin
+      .from('anxiety_video_stories')
+      .select('id')
+      .eq('id', storyId)
+      .eq('status', 'approved')
+      .maybeSingle();
+    if (storyError) {
+      console.error('Unable to verify Anxiety video story engagement target:', storyError);
+      if (isMissingStoriesTable(storyError)) {
+        return missingStoriesTableResponse();
+      }
+      return NextResponse.json({ error: 'The video story could not be verified.' }, { status: 500 });
+    }
+    if (!story) {
+      return NextResponse.json({ error: 'Approved video story not found.' }, { status: 404 });
+    }
+
+    let interactionError;
+    if (body.action === 'view') {
+      const result = await supabaseAdmin.rpc('record_anxiety_video_story_view', {
+        p_story_id: storyId,
+        p_viewer_id: viewerId
+      });
+      interactionError = result.error;
+    } else {
+      const vote = body.vote;
+      if (vote !== -1 && vote !== 0 && vote !== 1) {
+        return NextResponse.json({ error: 'Choose an upvote or downvote.' }, { status: 400 });
+      }
+      const result = await supabaseAdmin.rpc('set_anxiety_video_story_vote', {
+        p_story_id: storyId,
+        p_viewer_id: viewerId,
+        p_vote: vote
+      });
+      interactionError = result.error;
+    }
+    if (interactionError) {
+      console.error('Unable to record Anxiety video story engagement:', interactionError);
+      if (isMissingEngagementSchema(interactionError)) {
+        return missingEngagementSchemaResponse();
+      }
+      return NextResponse.json({ error: 'Your story interaction could not be saved.' }, { status: 500 });
+    }
+
+    const { data: engagement, error: engagementError } = await supabaseAdmin.rpc(
+      'get_anxiety_video_story_engagement',
+      { p_story_ids: [storyId], p_viewer_id: viewerId }
+    );
+    if (engagementError) {
+      console.error('Unable to reload Anxiety video story engagement:', engagementError);
+      if (isMissingEngagementSchema(engagementError)) {
+        return missingEngagementSchemaResponse();
+      }
+      return NextResponse.json({ error: 'Updated story counts could not be loaded.' }, { status: 500 });
+    }
+    const updatedEngagement = Array.isArray(engagement)
+      ? parseVideoStoryEngagement(engagement[0])
+      : null;
+    if (!updatedEngagement) {
+      return NextResponse.json({ error: 'Approved video story not found.' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      interaction: {
+        story_id: storyId,
+        view_count: updatedEngagement.view_count,
+        upvotes: updatedEngagement.upvotes,
+        downvotes: updatedEngagement.downvotes,
+        viewer_vote: updatedEngagement.viewer_vote
+      }
+    });
   }
 
   if (body.action === 'prepare-upload') {
