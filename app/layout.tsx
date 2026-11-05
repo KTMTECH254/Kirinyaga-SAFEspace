@@ -113,7 +113,7 @@ function AppLayout({
       </head>
       <body className={`${inter.className} bg-[hsl(var(--bg-primary))] text-[hsl(var(--text-primary))] antialiased dark:bg-[hsl(var(--bg-primary))] dark:text-[hsl(var(--text-primary))]`}>
         <header
-          className={`${pathname === '/chat/anxiety' || pathname === '/chat/anxiety/stories' ? 'hidden' : 'fixed top-0 left-0 right-0 z-40 transition-all duration-300'} ${
+          className={`${pathname === '/login' || pathname === '/chat/anxiety' || pathname === '/chat/anxiety/stories' ? 'hidden' : 'fixed top-0 left-0 right-0 z-40 transition-all duration-300'} ${
             isDark
               ? scrolled
                 ? 'bg-[#080e1a]/95 backdrop-blur-md border-b border-white/10 shadow-lg'
@@ -295,13 +295,13 @@ function AppLayout({
           )}
         </header>
 
-        <main className={pathname === '/chat/anxiety' ? 'min-h-screen' : 'pt-20 min-h-screen'}>
+        <main className={pathname === '/login' || pathname === '/chat/anxiety' ? 'min-h-screen' : 'pt-20 min-h-screen'}>
           {children}
         </main>
 
-        {!['/', '/chat-rooms', '/chat/anxiety'].includes(pathname) && <AnonymousProfile />}
+        {!['/', '/login', '/chat-rooms', '/chat/anxiety'].includes(pathname) && <AnonymousProfile />}
 
-        {pathname !== '/chat/anxiety' && <footer className={`border-t ${isDark ? 'border-white/10 bg-[#080e1a]' : 'border-gray-100 bg-gradient-to-b from-white to-blue-50'}`}>
+        {pathname !== '/login' && pathname !== '/chat/anxiety' && <footer className={`border-t ${isDark ? 'border-white/10 bg-[#080e1a]' : 'border-gray-100 bg-gradient-to-b from-white to-blue-50'}`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
               <div className="space-y-4">

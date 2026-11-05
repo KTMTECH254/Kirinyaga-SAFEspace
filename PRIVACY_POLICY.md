@@ -16,7 +16,8 @@ hash, profile preferences, support-chat messages, mood and goal entries,
 resource activity, and requests submitted through professional-directory
 forms. Professional application and session-request forms may include names,
 email addresses, phone numbers, professional credentials, availability, and
-notes.
+notes. When an account is created, the Service also records the version of the
+Terms and Conditions accepted and the acceptance timestamp.
 
 Some preferences and session identifiers are stored in the browser using local
 storage or session storage. Application data is stored through Supabase where
@@ -26,7 +27,8 @@ the deployed service is configured to use it.
 
 The intended purposes are providing anonymous account access, community and
 resource features, progress tools, professional-directory requests, service
-safety, and administration.
+safety, administration, and keeping a record of agreement to the applicable
+Terms and Conditions version.
 
 ## Your responsibilities
 

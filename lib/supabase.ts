@@ -267,12 +267,17 @@ export const authFunctions = {
   },
 
   // Create user profile with username + password (no email)
-  createUserWithPassword: async function(anonymousName: string, password: string) {
+  createUserWithPassword: async function(
+    anonymousName: string,
+    password: string,
+    termsAccepted: boolean,
+    termsVersion: string
+  ) {
     try {
       const response = await fetch('/api/auth/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sign-up', anonymousName, password })
+        body: JSON.stringify({ action: 'sign-up', anonymousName, password, termsAccepted, termsVersion })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to create profile.');

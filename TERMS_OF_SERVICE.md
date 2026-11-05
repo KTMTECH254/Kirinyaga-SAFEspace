@@ -1,47 +1,31 @@
-# Draft service terms
+# Terms and Conditions
 
-**Status:** Draft for legal review before production use.
+**Version:** 1.0
+**Last updated:** 5 November 2026
 
-**Last updated:** 2026-09-21
+These are general service terms for UNSPOKEN MINDS SAFEspace, operated by
+KIRANGA TOM MURIITHI. The account-creation flow requires users to confirm that
+they have read and agreed to the current version. Acceptance time and version
+are recorded with the account.
 
-These draft terms describe the intended conditions for use of UNSPOKEN MINDS
-SAFEspace, operated by KIRANGA TOM MURIITHI ("we", "us", or "our"). They
-should be reviewed by a qualified lawyer and completed with an official
-support contact, governing-law clause, and deployment-specific details before
-being presented as binding terms to users.
+> **Legal review required:** This document is not legal advice and does not
+> certify compliance with every country’s laws. Requirements for mental-health
+> services, privacy, online safety, children, accessibility, and consumer
+> rights vary by jurisdiction. The operator should obtain qualified legal
+> review for each intended market and publish official contact and privacy
+> details before public launch. No provision removes rights that cannot
+> lawfully be waived.
 
-## Intended service
+The current user-facing terms are available at [/terms](/terms).
+They cover eligibility, the peer-support and non-emergency nature of the
+Service, respectful and non-discriminatory conduct, prohibited content, privacy
+limitations in group conversations, user content, moderation, accessibility,
+availability, and applicable non-waivable rights. The Kenya-specific
+references include Articles 27, 28, 31, and 43(1)(a) of the Constitution of
+Kenya. International human-rights instruments are identified as guiding
+principles, not as a claim that every instrument applies directly in every
+country.
 
-UNSPOKEN MINDS SAFEspace is intended to provide peer-support spaces,
-educational resources, and tools that may support mental wellness. It is not a
-medical service, emergency service, crisis hotline, or substitute for a
-qualified healthcare professional.
-
-If you or someone else may be in immediate danger, contact local emergency
-services or an appropriate crisis service immediately.
-
-## Acceptable use
-
-Users must not harass others; impersonate another person; post unlawful,
-harmful, threatening, exploitative, or discriminatory content; disclose
-another person's private information; attempt to bypass security controls; or
-use the service for commercial exploitation without written permission.
-
-## Accounts and content
-
-Users are responsible for the anonymous name and password they choose and for
-content submitted through the service. We may remove content, restrict access,
-or suspend use where reasonably necessary for safety, security, or compliance
-with law.
-
-## Availability and disclaimer
-
-The service may change, be interrupted, or be withdrawn. To the extent
-permitted by law, it is provided without warranties of availability, accuracy,
-or fitness for a particular purpose.
-
-## Contact and governing law
-
-Before launch, replace this section with the operator's official support email
-or other private contact method, physical/business details where required, and
-the chosen governing law and dispute process.
+The Service is not a healthcare provider, emergency service, crisis hotline, or
+substitute for a qualified professional. Anyone in immediate danger should
+contact local emergency services or an appropriate crisis service.

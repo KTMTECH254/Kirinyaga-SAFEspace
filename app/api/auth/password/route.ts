@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { compare, hash } from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { setAuthSession } from '@/lib/authSession';
+import { TERMS_VERSION } from '@/lib/terms';
 
 const safeProfileFields = 'id, anonymous_name, display_name, preferences, created_at';
 
@@ -17,6 +18,13 @@ export async function POST(req: Request) {
     }
 
     if (action === 'sign-up') {
+      if (body.termsAccepted !== true || body.termsVersion !== TERMS_VERSION) {
+        return NextResponse.json(
+          { error: 'You must accept the current Terms and Conditions before creating an account.' },
+          { status: 400 }
+        );
+      }
+
       if (password.length < 6) {
         return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 });
       }
@@ -35,7 +43,12 @@ export async function POST(req: Request) {
       const passwordHash = await hash(password, 10);
       const { data: profile, error } = await supabaseAdmin
         .from('user_profiles')
-        .insert({ anonymous_name: anonymousName, password_hash: passwordHash })
+        .insert({
+          anonymous_name: anonymousName,
+          password_hash: passwordHash,
+          terms_accepted_at: new Date().toISOString(),
+          terms_version: TERMS_VERSION
+        })
         .select(safeProfileFields)
         .single();
 
